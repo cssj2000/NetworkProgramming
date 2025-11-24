@@ -203,4 +203,35 @@ public class LobbyPanel extends JPanel {
     public void setOnStartGameListener(OnStartGameListener listener) {
         this.onStartGameListener = listener;
     }
+
+    // ---- 플레이어 정보 동기화 메서드 ----
+    public void clearPlayers() {
+        for (int i = 0; i < 4; i++) {
+            nameFields[i].setText("플레이어" + (i + 1));
+            readyButtons[i].setSelected(false);
+            readyButtons[i].setText("준비 완료!");
+            readyButtons[i].setBackground(new Color(120, 200, 255));
+            readyButtons[i].setEnabled(i == 0); // 첫 번째만 활성화
+        }
+        updateStartButton();
+    }
+
+    public void setPlayerInfo(int index, String name, boolean ready) {
+        if (index >= 0 && index < 4) {
+            nameFields[index].setText(name);
+            readyButtons[index].setSelected(ready);
+            if (ready) {
+                readyButtons[index].setText("준비");
+                readyButtons[index].setBackground(new Color(210, 210, 210));
+            } else {
+                readyButtons[index].setText("준비 완료!");
+                readyButtons[index].setBackground(new Color(120, 200, 255));
+            }
+
+            // 첫 번째 플레이어(본인)만 버튼 활성화
+            readyButtons[index].setEnabled(index == 0);
+
+            updateStartButton();
+        }
+    }
 }

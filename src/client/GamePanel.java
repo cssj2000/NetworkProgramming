@@ -40,7 +40,12 @@ public class GamePanel extends JPanel implements KeyListener {
         void onGameEnd(int score, int maxCombo);
     }
 
+    public interface InputSender {
+        void sendInput(String result);
+    }
+
     private GameEndListener onGameEndListener;
+    private InputSender inputSender;
 
     public GamePanel() {
         setLayout(new BorderLayout());
@@ -160,11 +165,61 @@ public class GamePanel extends JPanel implements KeyListener {
         this.onGameEndListener = listener;
     }
 
+    public void setInputSender(InputSender sender) {
+        this.inputSender = sender;
+    }
+
     /** 나중에 서버에서 닉네임 내려줄 때 사용 가능 */
     public void setPlayerName(int index, String name) {
         if (index >= 0 && index < playerNameLabels.length) {
             playerNameLabels[index].setText(name);
         }
+    }
+
+    // ---- 플레이어 정보 동기화 메서드 ----
+    public void clearPlayers() {
+        for (int i = 0; i < 4; i++) {
+            playerNameLabels[i].setText("플레이어" + (i + 1));
+            playerScoreLabels[i].setText("성공: 0");
+            playerComboLabels[i].setText("콤보: 0");
+        }
+    }
+
+    public void setPlayerInfo(int index, String name, int score, int combo) {
+        if (index >= 0 && index < playerNameLabels.length) {
+            playerNameLabels[index].setText(name);
+            playerScoreLabels[index].setText("성공: " + score);
+            playerComboLabels[index].setText("콤보: " + combo);
+        }
+    }
+
+    public int getScore() {
+        return score;
+    }
+
+    public int getMaxCombo() {
+        return maxCombo;
+    }
+
+    /** 서버에서 게임 시작 명령이 왔을 때 호출 */
+    public void prepareGame() {
+        stage = 1;
+        score = 0;
+        combo = 0;
+        maxCombo = 0;
+        remainingSeconds = 60;
+
+        if (gameTimer != null) {
+            gameTimer.stop();
+        }
+
+        startTimer();
+        clearPlayers();
+        updateTimeLabel();
+
+        requestFocusInWindow();
+        bigMessageLabel.setText("");
+        statusLabel.setText("시퀀스를 기다리는 중...");
     }
 
     // ====== 내부 게임 진행 로직 ======
@@ -228,7 +283,35 @@ public class GamePanel extends JPanel implements KeyListener {
         arrowPanel.setSequence(sequence);
     }
 
-    // 서버에서 시퀀스를 내려줄 때 사용하도록 준비
+    // 서버에서 시퀀스를 내려줄 때 사용하도록 준비 (String 배열)
+    public void setSequenceFromServer(String[] directions, int stageNumber) {
+        this.stage = stageNumber;
+        sequence.clear();
+        arrowColors.clear();
+
+        Random rnd = new Random();
+        for (String dir : directions) {
+            Direction d = Direction.valueOf(dir);
+            sequence.add(d);
+
+            if (stage >= 5) {
+                arrowColors.add(randomColor(rnd));
+            } else {
+                arrowColors.add(defaultColor(d));
+            }
+        }
+
+        currentIndex = 0;
+        arrowPanel.setSequence(sequence);
+        arrowPanel.setCurrentIndex(0);
+        bigMessageLabel.setText("");
+        statusLabel.setText("화살표 키를 순서대로 눌러주세요!");
+        difficultyLabel.setText("난이도: " + sequence.size() + "개 화살표");
+        arrowPanel.repaint();
+        requestFocusInWindow();
+    }
+
+    // 서버에서 시퀀스를 내려줄 때 사용하도록 준비 (Direction 리스트) - 호환성 유지
     public void setSequenceFromServer(List<Direction> seq, int stageNumber) {
         this.stage = stageNumber;
         sequence.clear();
@@ -302,13 +385,13 @@ public class GamePanel extends JPanel implements KeyListener {
                 maxCombo = Math.max(maxCombo, combo);
                 updatePlayerStats();
 
-                // 잠깐 기다렸다가 다음 스테이지
-                Timer t = new Timer(200, evt -> {
-                    stage++;
-                    startNewStageInternal();
-                });
-                t.setRepeats(false);
-                t.start();
+                // 서버로 성공 전송
+                if (inputSender != null) {
+                    inputSender.sendInput("SUCCESS");
+                }
+
+                // 서버에서 다음 시퀀스를 보내줄 때까지 대기
+                statusLabel.setText("다음 스테이지를 기다리는 중...");
             }
         } else {
             // 실패
@@ -319,12 +402,11 @@ public class GamePanel extends JPanel implements KeyListener {
             arrowPanel.setCurrentIndex(0);
             arrowPanel.repaint();
             updatePlayerStats();
-        }
 
-        // 예시: stage가 10 넘어가면 게임 종료 (원하면 조절)
-        if (stage > 10 && onGameEndListener != null) {
-            if (gameTimer != null) gameTimer.stop();
-            onGameEndListener.onGameEnd(score, maxCombo);
+            // 서버로 실패 전송
+            if (inputSender != null) {
+                inputSender.sendInput("FAIL");
+            }
         }
     }
 
