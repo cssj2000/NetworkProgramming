@@ -4,7 +4,8 @@ public class Player {
     private String nickname;
     private boolean ready;
     private boolean isHost; // 방장 여부
-    private int score;
+    private int score;       // 실제 점수 (콤보 보너스 포함)
+    private int successCount; // 정답 개수
     private int combo;
     private int maxCombo;
     private int currentStage;
@@ -16,6 +17,7 @@ public class Player {
         this.ready = false;
         this.isHost = false;
         this.score = 0;
+        this.successCount = 0;
         this.combo = 0;
         this.maxCombo = 0;
         this.currentStage = 1;
@@ -51,6 +53,14 @@ public class Player {
 
     public void setScore(int score) {
         this.score = score;
+    }
+
+    public int getSuccessCount() {
+        return successCount;
+    }
+
+    public void setSuccessCount(int successCount) {
+        this.successCount = successCount;
     }
 
     public int getCombo() {

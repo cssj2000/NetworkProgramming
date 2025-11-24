@@ -298,6 +298,7 @@ public class GameServer {
         // 모든 플레이어 점수 초기화
         for (Player p : room.getPlayers()) {
             p.setScore(0);
+            p.setSuccessCount(0);
             p.setCombo(0);
             p.setCurrentStage(1);
         }
@@ -314,7 +315,8 @@ public class GameServer {
     // 플레이어에게 시퀀스 전송
     private synchronized void sendSequenceToPlayer(Player player) {
         int stage = player.getCurrentStage();
-        int length = 3 + stage - 1;
+        // 스테이지 12부터는 난이도 고정 (화살표 14개)
+        int length = stage >= 12 ? 14 : (3 + stage - 1);
 
         String[] directions = {"UP", "DOWN", "LEFT", "RIGHT"};
         Random rnd = new Random();
@@ -324,6 +326,8 @@ public class GameServer {
         for (int i = 0; i < length; i++) {
             sb.append(" ").append(directions[rnd.nextInt(directions.length)]);
         }
+
+        System.out.println("[SEQUENCE] " + player.getNickname() + " - Stage " + stage + ", Length " + length);
 
         try {
             player.getHandler().sendMessage(sb.toString());
@@ -351,18 +355,31 @@ public class GameServer {
         if (player == null) return;
 
         if (input.equals("SUCCESS")) {
-            player.setScore(player.getScore() + 1);
+            // 정답 개수 증가
+            player.setSuccessCount(player.getSuccessCount() + 1);
+
+            // 콤보 증가
             player.setCombo(player.getCombo() + 1);
 
+            // 점수 계산: 기본 100점 + 콤보 보너스 (콤보 x 10점)
+            int baseScore = 100;
+            int comboBonus = player.getCombo() * 10;
+            int earnedScore = baseScore + comboBonus;
+            player.setScore(player.getScore() + earnedScore);
+
+            System.out.println("[SCORE] " + player.getNickname() + " - 정답! 콤보: " + player.getCombo()
+                    + ", 획득 점수: " + earnedScore + " (기본 " + baseScore + " + 콤보 보너스 " + comboBonus + ")");
+
             int nextStage = player.getCurrentStage() + 1;
-            if (nextStage > 10) {
-                System.out.println(player.getNickname() + " completed all stages!");
+            if (nextStage > 20) {
+                System.out.println(player.getNickname() + " completed all stages (Stage 20)!");
                 checkGameEnd(roomId);
             } else {
                 player.setCurrentStage(nextStage);
                 sendSequenceToPlayer(player);
             }
         } else if (input.equals("FAIL")) {
+            System.out.println("[SCORE] " + player.getNickname() + " - 실패! 콤보 초기화");
             player.setCombo(0);
         }
 
@@ -375,12 +392,14 @@ public class GameServer {
         if (room == null) return;
 
         for (Player p : room.getPlayers()) {
-            if (p.getCurrentStage() <= 10) {
+            if (p.getCurrentStage() <= 20) {
+                System.out.println("[GAME_END_CHECK] " + p.getNickname() + " is at stage " + p.getCurrentStage() + ", waiting...");
                 return;
             }
         }
 
         // 모든 플레이어가 완료
+        System.out.println("[GAME_END_CHECK] All players completed! Ending game...");
         endGame(roomId);
     }
 
@@ -390,6 +409,51 @@ public class GameServer {
         if (room == null) return;
 
         room.setInGame(false);
+
+        System.out.println("[DEBUG] ===== GAME END - RANKING INFO =====");
+        System.out.println("[DEBUG] Room: " + roomId);
+        System.out.println("[DEBUG] Players before sorting:");
+        for (Player p : room.getPlayers()) {
+            System.out.println("[DEBUG]   " + p.getNickname() + ": Score=" + p.getScore()
+                    + ", Success=" + p.getSuccessCount() + ", MaxCombo=" + p.getMaxCombo());
+        }
+
+        // 랭킹 정렬: 점수 → 정답 개수 → 최고 콤보 순으로 비교
+        java.util.List<Player> sortedPlayers = new java.util.ArrayList<>(room.getPlayers());
+        sortedPlayers.sort((p1, p2) -> {
+            // 1. 점수 비교 (내림차순)
+            if (p2.getScore() != p1.getScore()) {
+                return p2.getScore() - p1.getScore();
+            }
+            // 2. 정답 개수 비교 (내림차순)
+            if (p2.getSuccessCount() != p1.getSuccessCount()) {
+                return p2.getSuccessCount() - p1.getSuccessCount();
+            }
+            // 3. 최고 콤보 비교 (내림차순)
+            return p2.getMaxCombo() - p1.getMaxCombo();
+        });
+
+        System.out.println("[DEBUG] Players after sorting:");
+        for (int i = 0; i < sortedPlayers.size(); i++) {
+            Player p = sortedPlayers.get(i);
+            System.out.println("[DEBUG]   " + (i+1) + ". " + p.getNickname() + ": Score=" + p.getScore()
+                    + ", Success=" + p.getSuccessCount() + ", MaxCombo=" + p.getMaxCombo());
+        }
+
+        // 랭킹 정보 생성: GAME_RANKING name1|score1|success1|combo1 name2|score2|success2|combo2 ...
+        StringBuilder rankingMsg = new StringBuilder("GAME_RANKING");
+        for (Player p : sortedPlayers) {
+            rankingMsg.append(" ").append(p.getNickname())
+                    .append("|").append(p.getScore())
+                    .append("|").append(p.getSuccessCount())
+                    .append("|").append(p.getMaxCombo());
+        }
+
+        System.out.println("[DEBUG] Ranking message: " + rankingMsg.toString());
+        System.out.println("[DEBUG] ===================================");
+
+        // 모든 플레이어에게 랭킹 정보 전송
+        broadcastToRoom(roomId, rankingMsg.toString());
 
         // 모든 플레이어 준비 상태 해제
         for (Player p : room.getPlayers()) {

@@ -111,11 +111,6 @@ public class ArrowGameClientApp extends JFrame {
             }
         });
 
-        resultPanel.setOnRetryListener(() -> {
-            cardLayout.show(mainPanel, "GAME");
-            gamePanel.startGame();
-        });
-
         resultPanel.setOnExitListener(() -> {
             // 로비로 돌아가기 (방은 유지)
             cardLayout.show(mainPanel, "LOBBY");
@@ -377,11 +372,40 @@ public class ArrowGameClientApp extends JFrame {
                     gamePanel.setSequenceFromServer(directions, stage);
                 }
 
+        } else if (msg.startsWith("GAME_RANKING ")) {
+                // 게임 랭킹 정보
+                // GAME_RANKING name1|score1|success1|combo1 name2|score2|success2|combo2 ...
+                System.out.println("[DEBUG CLIENT] ===== GAME_RANKING RECEIVED =====");
+                System.out.println("[DEBUG CLIENT] Full message: " + msg);
+
+                String[] parts = msg.split(" ");
+                System.out.println("[DEBUG CLIENT] Split parts: " + parts.length);
+
+                java.util.List<ResultPanel.PlayerRankInfo> rankings = new java.util.ArrayList<>();
+
+                for (int i = 1; i < parts.length; i++) {
+                    System.out.println("[DEBUG CLIENT] Processing part[" + i + "]: " + parts[i]);
+                    String[] playerData = parts[i].split("\\|");
+                    System.out.println("[DEBUG CLIENT]   Split into " + playerData.length + " parts");
+
+                    if (playerData.length >= 4) {
+                        String name = playerData[0];
+                        int score = Integer.parseInt(playerData[1]);
+                        int successCount = Integer.parseInt(playerData[2]);
+                        int maxCombo = Integer.parseInt(playerData[3]);
+                        System.out.println("[DEBUG CLIENT]   Player: " + name + ", Score: " + score
+                                + ", Success: " + successCount + ", Combo: " + maxCombo);
+                        rankings.add(new ResultPanel.PlayerRankInfo(name, score, successCount, maxCombo));
+                    }
+                }
+
+                System.out.println("[DEBUG CLIENT] Total rankings: " + rankings.size());
+                System.out.println("[DEBUG CLIENT] ================================");
+
+                resultPanel.setRankingResult(rankings);
+
         } else if (msg.equals("GAME_END")) {
-                // 게임 종료
-                int score = gamePanel.getScore();
-                int maxCombo = gamePanel.getMaxCombo();
-                resultPanel.setResult(score, maxCombo);
+                // 게임 종료 - 결과 화면으로 이동
                 cardLayout.show(mainPanel, "RESULT");
 
         } else {
