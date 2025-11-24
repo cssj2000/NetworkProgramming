@@ -38,8 +38,14 @@ public class ArrowGameClientApp extends JFrame {
 
         // ---- 화면 전환 콜백 ----
         lobbyPanel.setOnStartGameListener(() -> {
-            // 로비에서 게임 시작 버튼을 눌러도 서버가 시작을 관리하므로 아무것도 안 함
-            // 서버에서 START_GAME 메시지가 오면 게임 시작
+            // 방장이 게임 시작 버튼을 누르면 서버에 요청
+            if (gameClient != null) {
+                try {
+                    gameClient.send("START_GAME_REQUEST");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         });
 
         gamePanel.setOnGameEndListener((score, maxCombo) -> {
@@ -63,7 +69,11 @@ public class ArrowGameClientApp extends JFrame {
             gamePanel.startGame();
         });
 
-        resultPanel.setOnExitListener(() -> System.exit(0));
+        resultPanel.setOnExitListener(() -> {
+            // 로비로 돌아가기
+            cardLayout.show(mainPanel, "LOBBY");
+            gamePanel.resetGame();
+        });
 
         setVisible(true);
     }
@@ -176,7 +186,7 @@ public class ArrowGameClientApp extends JFrame {
                 break;
             }
             case "PLAYER_LIST": {
-                // PLAYER_LIST player1|ready|score|combo|maxCombo player2|...
+                // PLAYER_LIST player1|ready|isHost|score|combo|maxCombo player2|...
                 lobbyPanel.clearPlayers();
                 gamePanel.clearPlayers();
 
@@ -184,35 +194,42 @@ public class ArrowGameClientApp extends JFrame {
                 java.util.List<PlayerInfo> playerList = new java.util.ArrayList<>();
                 for (int i = 1; i < parts.length; i++) {
                     String[] playerData = parts[i].split("\\|");
-                    if (playerData.length >= 5) {
+                    if (playerData.length >= 6) {
                         String name = playerData[0];
                         boolean ready = Boolean.parseBoolean(playerData[1]);
-                        int score = Integer.parseInt(playerData[2]);
-                        int combo = Integer.parseInt(playerData[3]);
+                        boolean isHost = Boolean.parseBoolean(playerData[2]);
+                        int score = Integer.parseInt(playerData[3]);
+                        int combo = Integer.parseInt(playerData[4]);
 
-                        playerList.add(new PlayerInfo(name, ready, score, combo));
+                        playerList.add(new PlayerInfo(name, ready, isHost, score, combo));
                     }
                 }
 
                 // 자기 자신을 0번에 배치
-                int slot = 0;
+                boolean imHost = false;
                 for (PlayerInfo info : playerList) {
                     if (info.name.equals(myNickname)) {
-                        lobbyPanel.setPlayerInfo(0, info.name, info.ready);
+                        lobbyPanel.setPlayerInfo(0, info.name, info.ready, info.isHost);
                         gamePanel.setPlayerInfo(0, info.name, info.score, info.combo);
+                        imHost = info.isHost;
                         break;
                     }
                 }
 
                 // 나머지 플레이어들을 1, 2, 3번에 배치
-                slot = 1;
+                int slot = 1;
+                java.util.List<String> otherPlayers = new java.util.ArrayList<>();
                 for (PlayerInfo info : playerList) {
                     if (!info.name.equals(myNickname) && slot < 4) {
-                        lobbyPanel.setPlayerInfo(slot, info.name, info.ready);
+                        lobbyPanel.setPlayerInfo(slot, info.name, info.ready, info.isHost);
                         gamePanel.setPlayerInfo(slot, info.name, info.score, info.combo);
+                        otherPlayers.add(info.name);
                         slot++;
                     }
                 }
+
+                // 방장 여부와 다른 플레이어 목록 업데이트
+                lobbyPanel.updateHostStatus(imHost, otherPlayers);
                 break;
             }
             case "START_GAME": {
@@ -256,12 +273,14 @@ public class ArrowGameClientApp extends JFrame {
     private static class PlayerInfo {
         String name;
         boolean ready;
+        boolean isHost;
         int score;
         int combo;
 
-        PlayerInfo(String name, boolean ready, int score, int combo) {
+        PlayerInfo(String name, boolean ready, boolean isHost, int score, int combo) {
             this.name = name;
             this.ready = ready;
+            this.isHost = isHost;
             this.score = score;
             this.combo = combo;
         }

@@ -9,7 +9,7 @@ public class ResultPanel extends JPanel {
     JLabel scoreLabel = new JLabel("점수: 0", SwingConstants.CENTER);
     JLabel comboLabel = new JLabel("최고 콤보: 0", SwingConstants.CENTER);
     JButton retryButton = new JButton("다시 플레이");
-    JButton exitButton = new JButton("나가기");
+    JButton exitButton = new JButton("로비로");
 
     public interface RetryListener { void onRetry(); }
     public interface ExitListener { void onExit(); }

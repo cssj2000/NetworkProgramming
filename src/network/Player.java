@@ -3,6 +3,7 @@ package network;
 public class Player {
     private String nickname;
     private boolean ready;
+    private boolean isHost; // 방장 여부
     private int score;
     private int combo;
     private int maxCombo;
@@ -13,6 +14,7 @@ public class Player {
         this.nickname = nickname;
         this.handler = handler;
         this.ready = false;
+        this.isHost = false;
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
@@ -33,6 +35,14 @@ public class Player {
 
     public void setReady(boolean ready) {
         this.ready = ready;
+    }
+
+    public boolean isHost() {
+        return isHost;
+    }
+
+    public void setHost(boolean host) {
+        isHost = host;
     }
 
     public int getScore() {
@@ -72,6 +82,6 @@ public class Player {
 
     // 플레이어 정보를 문자열로 변환 (프로토콜용)
     public String toProtocolString() {
-        return nickname + "|" + ready + "|" + score + "|" + combo + "|" + maxCombo;
+        return nickname + "|" + ready + "|" + isHost + "|" + score + "|" + combo + "|" + maxCombo;
     }
 }

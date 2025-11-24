@@ -7,10 +7,15 @@ public class LobbyPanel extends JPanel {
 
     JTextField[] nameFields = new JTextField[4];
     JToggleButton[] readyButtons = new JToggleButton[4];
+    JLabel[] hostLabels = new JLabel[4]; // 방장 표시 라벨
     JButton startButton = new JButton("게임 시작!");
+    JButton transferHostButton = new JButton("방장 위임");
     JTextArea chatArea = new JTextArea();
     JTextField chatInput = new JTextField();
     JButton sendButton = new JButton("전송");
+
+    private boolean isHost = false;
+    private java.util.List<String> otherPlayerNames = new java.util.ArrayList<>();
 
     // ---- 네트워크 쪽으로 문자열을 보내기 위한 인터페이스 ----
     public interface NetworkSender {
@@ -58,6 +63,13 @@ public class LobbyPanel extends JPanel {
             playerLabel.setFont(new Font("Dialog", Font.BOLD, 18));
             playerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+            // 방장 표시 라벨
+            hostLabels[i] = new JLabel("👑 방장");
+            hostLabels[i].setFont(new Font("Dialog", Font.BOLD, 14));
+            hostLabels[i].setForeground(new Color(255, 180, 0));
+            hostLabels[i].setAlignmentX(Component.LEFT_ALIGNMENT);
+            hostLabels[i].setVisible(false); // 기본적으로 숨김
+
             nameFields[i] = new JTextField("플레이어" + (i + 1));
             nameFields[i].setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
@@ -88,6 +100,8 @@ public class LobbyPanel extends JPanel {
             });
 
             p.add(playerLabel);
+            p.add(Box.createVerticalStrut(4));
+            p.add(hostLabels[i]);
             p.add(Box.createVerticalStrut(8));
             p.add(nameFields[i]);
             p.add(Box.createVerticalStrut(10));
@@ -129,24 +143,37 @@ public class LobbyPanel extends JPanel {
         center.add(chatPanel, BorderLayout.EAST);
         add(center, BorderLayout.CENTER);
 
-        // -------- 하단: 게임 시작 버튼 --------
+        // -------- 하단: 게임 시작 버튼 + 방장 위임 버튼 --------
         JPanel bottom = new JPanel();
         bottom.setLayout(new BoxLayout(bottom, BoxLayout.Y_AXIS));
         bottom.setOpaque(false);
         bottom.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
 
+        // 버튼 패널 (방장 위임 + 게임 시작)
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonPanel.setOpaque(false);
+
+        transferHostButton.setPreferredSize(new Dimension(140, 50));
+        transferHostButton.setBackground(new Color(255, 180, 0));
+        transferHostButton.setForeground(Color.WHITE);
+        transferHostButton.setFont(new Font("Dialog", Font.BOLD, 16));
+        transferHostButton.setVisible(false); // 기본적으로 숨김 (방장만 보임)
+        transferHostButton.addActionListener(e -> showTransferHostDialog());
+
         startButton.setEnabled(false);
-        startButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         startButton.setPreferredSize(new Dimension(300, 60));
         startButton.setMaximumSize(new Dimension(300, 60));
         startButton.setBackground(new Color(120, 200, 255));
         startButton.setForeground(Color.WHITE);
         startButton.setFont(new Font("Dialog", Font.BOLD, 20));
 
-        JLabel info = new JLabel("모든 플레이어가 준비해야 합니다");
+        JLabel info = new JLabel("방장만 게임을 시작할 수 있습니다");
         info.setAlignmentX(Component.CENTER_ALIGNMENT);
         info.setForeground(new Color(170, 190, 210));
 
+        buttonPanel.add(transferHostButton);
+        bottom.add(buttonPanel);
+        bottom.add(Box.createVerticalStrut(10));
         bottom.add(startButton);
         bottom.add(Box.createVerticalStrut(10));
         bottom.add(info);
@@ -157,15 +184,48 @@ public class LobbyPanel extends JPanel {
         });
     }
 
+    // 방장 위임 다이얼로그
+    private void showTransferHostDialog() {
+        if (otherPlayerNames.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "방장을 위임할 다른 플레이어가 없습니다.",
+                    "방장 위임",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        String[] options = otherPlayerNames.toArray(new String[0]);
+        String selected = (String) JOptionPane.showInputDialog(
+                this,
+                "방장을 위임할 플레이어를 선택하세요:",
+                "방장 위임",
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                options,
+                options[0]
+        );
+
+        if (selected != null && networkSender != null) {
+            networkSender.send("TRANSFER_HOST " + selected);
+        }
+    }
+
     private void updateStartButton() {
-        boolean anyReady = false;
+        // 방장만 게임 시작 가능
+        if (!isHost) {
+            startButton.setEnabled(false);
+            return;
+        }
+
+        // 모든 플레이어가 준비했는지 확인
+        boolean allReady = false;
         for (JToggleButton b : readyButtons) {
             if (b.isSelected()) {
-                anyReady = true;
+                allReady = true;
                 break;
             }
         }
-        startButton.setEnabled(anyReady);
+        startButton.setEnabled(allReady);
     }
 
     private void sendChatMessage() {
@@ -216,7 +276,7 @@ public class LobbyPanel extends JPanel {
         updateStartButton();
     }
 
-    public void setPlayerInfo(int index, String name, boolean ready) {
+    public void setPlayerInfo(int index, String name, boolean ready, boolean isHost) {
         if (index >= 0 && index < 4) {
             nameFields[index].setText(name);
             readyButtons[index].setSelected(ready);
@@ -228,10 +288,25 @@ public class LobbyPanel extends JPanel {
                 readyButtons[index].setBackground(new Color(120, 200, 255));
             }
 
+            // 방장 표시
+            hostLabels[index].setVisible(isHost);
+
             // 첫 번째 플레이어(본인)만 버튼 활성화
             readyButtons[index].setEnabled(index == 0);
 
             updateStartButton();
         }
+    }
+
+    // 방장 상태 업데이트
+    public void updateHostStatus(boolean imHost, java.util.List<String> otherPlayers) {
+        this.isHost = imHost;
+        this.otherPlayerNames = new java.util.ArrayList<>(otherPlayers);
+
+        // 방장 위임 버튼 표시 여부
+        transferHostButton.setVisible(imHost && !otherPlayers.isEmpty());
+
+        // 게임 시작 버튼 활성화 여부 (방장만 + 모두 준비)
+        updateStartButton();
     }
 }

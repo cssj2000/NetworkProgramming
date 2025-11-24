@@ -62,6 +62,12 @@ public class GameServer {
     // 플레이어 추가
     public synchronized void addPlayer(Player player) {
         if (players.size() < MAX_PLAYERS) {
+            // 첫 번째 플레이어면 방장으로 설정
+            if (players.isEmpty()) {
+                player.setHost(true);
+                System.out.println(player.getNickname() + " is now the host");
+            }
+
             players.add(player);
             System.out.println("Player added: " + player.getNickname() + " (Total: " + players.size() + ")");
             broadcastPlayerList();
@@ -70,8 +76,18 @@ public class GameServer {
 
     // 플레이어 제거
     public synchronized void removePlayer(Player player) {
+        boolean wasHost = player.isHost();
         players.remove(player);
         System.out.println("Player removed: " + player.getNickname() + " (Total: " + players.size() + ")");
+
+        // 방장이 나갔으면 다음 사람에게 방장 위임
+        if (wasHost && !players.isEmpty()) {
+            Player newHost = players.get(0);
+            newHost.setHost(true);
+            System.out.println(newHost.getNickname() + " is now the host");
+            broadcast("SYS " + newHost.getNickname() + " 님이 방장이 되었습니다.");
+        }
+
         broadcastPlayerList();
     }
 
@@ -106,23 +122,48 @@ public class GameServer {
             if (p.getNickname().equals(nickname)) {
                 p.setReady(ready);
                 broadcastPlayerList();
-                checkAndStartGame();
                 break;
             }
         }
     }
 
-    // 모든 플레이어가 준비되었는지 확인하고 게임 시작
-    private void checkAndStartGame() {
-        if (players.size() < 1) return; // 최소 1명 필요
+    // 방장이 게임 시작 요청
+    public synchronized void requestStartGame(String hostNickname) {
+        // 게임이 이미 진행 중이면 무시
+        if (gameInProgress) {
+            return;
+        }
 
+        // 요청자가 방장인지 확인
+        Player host = null;
         for (Player p : players) {
-            if (!p.isReady()) {
-                return; // 한 명이라도 준비 안 됐으면 시작 안 함
+            if (p.getNickname().equals(hostNickname) && p.isHost()) {
+                host = p;
+                break;
             }
         }
 
-        // 모두 준비됨 - 게임 시작
+        if (host == null) {
+            System.out.println("Not authorized to start game: " + hostNickname);
+            return;
+        }
+
+        // 최소 1명 이상 준비되었는지 확인
+        boolean anyReady = false;
+        for (Player p : players) {
+            if (p.isReady()) {
+                anyReady = true;
+                break;
+            }
+        }
+
+        if (!anyReady) {
+            System.out.println("No players ready");
+            return;
+        }
+
+        // 게임 시작
+        System.out.println("Game start requested by host: " + hostNickname);
         startGame();
     }
 
@@ -240,6 +281,29 @@ public class GameServer {
 
     public synchronized Vector<Player> getPlayers() {
         return players;
+    }
+
+    // 방장 위임
+    public synchronized void transferHost(String currentHost, String newHostName) {
+        Player currentHostPlayer = null;
+        Player newHostPlayer = null;
+
+        for (Player p : players) {
+            if (p.getNickname().equals(currentHost)) {
+                currentHostPlayer = p;
+            }
+            if (p.getNickname().equals(newHostName)) {
+                newHostPlayer = p;
+            }
+        }
+
+        if (currentHostPlayer != null && newHostPlayer != null && currentHostPlayer.isHost()) {
+            currentHostPlayer.setHost(false);
+            newHostPlayer.setHost(true);
+            System.out.println("Host transferred from " + currentHost + " to " + newHostName);
+            broadcast("SYS " + newHostName + " 님이 방장이 되었습니다.");
+            broadcastPlayerList();
+        }
     }
 }
 

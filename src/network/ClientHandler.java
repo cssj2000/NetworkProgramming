@@ -78,6 +78,19 @@ class ClientHandler extends Thread {
                         server.handlePlayerInput(player.getNickname(), result);
                     }
 
+                } else if (line.startsWith("TRANSFER_HOST ")) {
+                    // TRANSFER_HOST 새방장닉네임
+                    if (player != null) {
+                        String newHostName = line.substring(14).trim();
+                        server.transferHost(player.getNickname(), newHostName);
+                    }
+
+                } else if (line.equals("START_GAME_REQUEST")) {
+                    // 방장이 게임 시작 요청
+                    if (player != null && player.isHost()) {
+                        server.requestStartGame(player.getNickname());
+                    }
+
                 } else if (line.equals("QUIT")) {
                     if (player != null) {
                         server.broadcast("SYS " + player.getNickname() + " 님이 나갔습니다.");
