@@ -10,9 +10,11 @@ public class LobbyPanel extends JPanel {
     JLabel[] hostLabels = new JLabel[4]; // 방장 표시 라벨
     JButton startButton = new JButton("게임 시작!");
     JButton transferHostButton = new JButton("방장 위임");
+    JButton leaveRoomButton = new JButton("방 나가기");
     JTextArea chatArea = new JTextArea();
     JTextField chatInput = new JTextField();
     JButton sendButton = new JButton("전송");
+    JLabel titleLabel; // 방 제목 라벨
 
     private boolean isHost = false;
     private java.util.List<String> otherPlayerNames = new java.util.ArrayList<>();
@@ -35,16 +37,23 @@ public class LobbyPanel extends JPanel {
 
     private OnStartGameListener onStartGameListener;
 
+    // ---- 방 나가기 콜백 ----
+    public interface OnLeaveRoomListener {
+        void onLeaveRoom();
+    }
+
+    private OnLeaveRoomListener onLeaveRoomListener;
+
     public LobbyPanel() {
         setLayout(new BorderLayout());
         setBackground(new Color(224, 245, 255));
 
         // 상단 타이틀
-        JLabel title = new JLabel("리듬 화살표 게임", SwingConstants.LEFT);
-        title.setFont(new Font("Dialog", Font.BOLD, 40));
-        title.setForeground(new Color(80, 190, 255));
-        title.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
-        add(title, BorderLayout.NORTH);
+        titleLabel = new JLabel("리듬 화살표 게임", SwingConstants.LEFT);
+        titleLabel.setFont(new Font("Dialog", Font.BOLD, 40));
+        titleLabel.setForeground(new Color(80, 190, 255));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
+        add(titleLabel, BorderLayout.NORTH);
 
         // -------- 왼쪽: 플레이어 카드 --------
         JPanel playersPanel = new JPanel(new GridLayout(2, 2, 16, 16));
@@ -149,11 +158,19 @@ public class LobbyPanel extends JPanel {
         bottom.setOpaque(false);
         bottom.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
 
-        // 버튼 패널 (방장 위임 + 게임 시작)
+        // 버튼 패널 (방 나가기 + 방장 위임 + 게임 시작)
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         buttonPanel.setOpaque(false);
 
-        transferHostButton.setPreferredSize(new Dimension(140, 50));
+        leaveRoomButton.setPreferredSize(new Dimension(120, 50));
+        leaveRoomButton.setBackground(new Color(150, 150, 150));
+        leaveRoomButton.setForeground(Color.WHITE);
+        leaveRoomButton.setFont(new Font("Dialog", Font.BOLD, 16));
+        leaveRoomButton.addActionListener(e -> {
+            if (onLeaveRoomListener != null) onLeaveRoomListener.onLeaveRoom();
+        });
+
+        transferHostButton.setPreferredSize(new Dimension(120, 50));
         transferHostButton.setBackground(new Color(255, 180, 0));
         transferHostButton.setForeground(Color.WHITE);
         transferHostButton.setFont(new Font("Dialog", Font.BOLD, 16));
@@ -171,6 +188,7 @@ public class LobbyPanel extends JPanel {
         info.setAlignmentX(Component.CENTER_ALIGNMENT);
         info.setForeground(new Color(170, 190, 210));
 
+        buttonPanel.add(leaveRoomButton);
         buttonPanel.add(transferHostButton);
         bottom.add(buttonPanel);
         bottom.add(Box.createVerticalStrut(10));
@@ -264,6 +282,10 @@ public class LobbyPanel extends JPanel {
         this.onStartGameListener = listener;
     }
 
+    public void setOnLeaveRoomListener(OnLeaveRoomListener listener) {
+        this.onLeaveRoomListener = listener;
+    }
+
     // ---- 플레이어 정보 동기화 메서드 ----
     public void clearPlayers() {
         for (int i = 0; i < 4; i++) {
@@ -308,5 +330,10 @@ public class LobbyPanel extends JPanel {
 
         // 게임 시작 버튼 활성화 여부 (방장만 + 모두 준비)
         updateStartButton();
+    }
+
+    // 방 제목 설정
+    public void setRoomTitle(String roomName) {
+        titleLabel.setText(roomName);
     }
 }

@@ -12,11 +12,13 @@ public class ArrowGameClientApp extends JFrame {
     private CardLayout cardLayout = new CardLayout();
     private JPanel mainPanel = new JPanel(cardLayout);
 
+    private RoomListPanel roomListPanel;
     private LobbyPanel lobbyPanel;
     private GamePanel gamePanel;
     private ResultPanel resultPanel;
     private GameClient gameClient; // 실제 소켓 클라이언트
     private String myNickname; // 내 닉네임
+    private String currentRoomId; // 현재 방 ID
 
     public ArrowGameClientApp() {
         setTitle("리듬 화살표 게임 (클라이언트)");
@@ -24,10 +26,12 @@ public class ArrowGameClientApp extends JFrame {
         setSize(1000, 720);
         setLocationRelativeTo(null);
 
+        roomListPanel = new RoomListPanel();
         lobbyPanel = new LobbyPanel();
         gamePanel = new GamePanel();
         resultPanel = new ResultPanel();
 
+        mainPanel.add(roomListPanel, "ROOM_LIST");
         mainPanel.add(lobbyPanel, "LOBBY");
         mainPanel.add(gamePanel, "GAME");
         mainPanel.add(resultPanel, "RESULT");
@@ -35,6 +39,49 @@ public class ArrowGameClientApp extends JFrame {
 
         // ---- 네트워크 연결 시도 ----
         initNetwork();
+
+        // ---- 방 목록 콜백 ----
+        roomListPanel.setOnRoomActionListener(new RoomListPanel.OnRoomActionListener() {
+            @Override
+            public void onCreateRoom(String roomName) {
+                if (gameClient != null) {
+                    try {
+                        gameClient.send("CREATE_ROOM " + roomName);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        JOptionPane.showMessageDialog(ArrowGameClientApp.this,
+                                "방 생성 중 오류: " + e.getMessage(),
+                                "네트워크 오류",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }
+
+            @Override
+            public void onJoinRoom(String roomId) {
+                if (gameClient != null) {
+                    try {
+                        gameClient.send("JOIN_ROOM " + roomId);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        JOptionPane.showMessageDialog(ArrowGameClientApp.this,
+                                "방 입장 중 오류: " + e.getMessage(),
+                                "네트워크 오류",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }
+        });
+
+        roomListPanel.setNetworkSender(msg -> {
+            if (gameClient != null) {
+                try {
+                    gameClient.send(msg);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
 
         // ---- 화면 전환 콜백 ----
         lobbyPanel.setOnStartGameListener(() -> {
@@ -70,9 +117,20 @@ public class ArrowGameClientApp extends JFrame {
         });
 
         resultPanel.setOnExitListener(() -> {
-            // 로비로 돌아가기
+            // 로비로 돌아가기 (방은 유지)
             cardLayout.show(mainPanel, "LOBBY");
             gamePanel.resetGame();
+        });
+
+        // 로비에서 방 나가기
+        lobbyPanel.setOnLeaveRoomListener(() -> {
+            if (gameClient != null && currentRoomId != null) {
+                try {
+                    gameClient.send("LEAVE_ROOM");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         });
 
         setVisible(true);
@@ -141,7 +199,10 @@ public class ArrowGameClientApp extends JFrame {
                         System.exit(0);
                     } else if (msg.equals("JOIN_OK")) {
                         joinAccepted[0] = true;
-                        lobbyPanel.setPlayerName(0, finalName);
+                        // 닉네임 설정 성공, 방 목록 화면으로 이동
+                        cardLayout.show(mainPanel, "ROOM_LIST");
+                        // 방 목록 자동 새로고침 시작
+                        roomListPanel.startAutoRefresh();
                     } else {
                         handleServerMessage(msg);
                     }
@@ -164,33 +225,102 @@ public class ArrowGameClientApp extends JFrame {
     // 서버에서 온 문자열을 해석해서 UI에 반영
     private void handleServerMessage(String msg) {
         System.out.println("From server: " + msg);
-        String[] parts = msg.split(" ");
-        if (parts.length == 0) return;
 
-        String cmd = parts[0];
+        if (msg.startsWith("ROOM_LIST")) {
+                // ROOM_LIST;roomId|roomName|current|max|inGame;roomId2|...
+                java.util.List<RoomListPanel.RoomInfo> rooms = new java.util.ArrayList<>();
+                System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING START =====");
+                System.out.println("[DEBUG CLIENT] Full message: " + msg);
+                String data = msg.substring("ROOM_LIST".length());
+                System.out.println("[DEBUG CLIENT] Data after substring: [" + data + "]");
+                System.out.println("[DEBUG CLIENT] Data length: " + data.length());
 
-        switch (cmd) {
-            case "SYS": {
+                if (data.length() > 0) {
+                    String[] roomEntries = data.split(";");
+                    System.out.println("[DEBUG CLIENT] Split result - array length: " + roomEntries.length);
+                    for (int i = 0; i < roomEntries.length; i++) {
+                        System.out.println("[DEBUG CLIENT] Entry[" + i + "]: [" + roomEntries[i] + "]");
+                    }
+
+                    for (String roomEntry : roomEntries) {
+                        if (roomEntry.trim().isEmpty()) {
+                            System.out.println("[DEBUG CLIENT] Skipping empty entry");
+                            continue;
+                        }
+
+                        String[] roomData = roomEntry.split("\\|");
+                        System.out.println("[DEBUG CLIENT] Room data parts: " + roomData.length);
+
+                        if (roomData.length >= 5) {
+                            String roomId = roomData[0];
+                            String roomName = roomData[1];
+                            int currentPlayers = Integer.parseInt(roomData[2]);
+                            int maxPlayers = Integer.parseInt(roomData[3]);
+                            boolean inGame = Boolean.parseBoolean(roomData[4]);
+                            System.out.println("[DEBUG CLIENT] Adding room - ID: " + roomId + ", Name: " + roomName + " (" + currentPlayers + "/" + maxPlayers + "), InGame: " + inGame);
+                            rooms.add(new RoomListPanel.RoomInfo(roomId, roomName, currentPlayers, maxPlayers, inGame));
+                        } else {
+                            System.out.println("[DEBUG CLIENT] Invalid room data - expected 5 parts, got " + roomData.length);
+                        }
+                    }
+                } else {
+                    System.out.println("[DEBUG CLIENT] No room data (data length is 0)");
+                }
+                System.out.println("[DEBUG CLIENT] Total rooms to display: " + rooms.size());
+                System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING END =====");
+                roomListPanel.updateRoomList(rooms);
+
+        } else if (msg.startsWith("ROOM_JOINED ")) {
+                // ROOM_JOINED roomId|roomName
+                String data = msg.substring("ROOM_JOINED ".length());
+                String[] roomData = data.split("\\|", 2); // 2개로만 분리 (roomId와 나머지)
+                if (roomData.length >= 2) {
+                    currentRoomId = roomData[0];
+                    String roomName = roomData[1];
+                    lobbyPanel.setRoomTitle(roomName);
+                } else {
+                    currentRoomId = roomData[0];
+                }
+                // 방 목록 자동 새로고침 정지
+                roomListPanel.stopAutoRefresh();
+                cardLayout.show(mainPanel, "LOBBY");
+
+        } else if (msg.equals("LEFT_ROOM")) {
+                // 방 나가기 성공
+                currentRoomId = null;
+                cardLayout.show(mainPanel, "ROOM_LIST");
+                // 방 목록 자동 새로고침 시작
+                roomListPanel.startAutoRefresh();
+
+        } else if (msg.startsWith("JOIN_ROOM_FAILED")) {
+                // JOIN_ROOM_FAILED 메시지
+                String reason = msg.length() > 17 ? msg.substring(17) : "방에 입장할 수 없습니다.";
+                JOptionPane.showMessageDialog(this,
+                        reason,
+                        "입장 실패",
+                        JOptionPane.WARNING_MESSAGE);
+
+        } else if (msg.startsWith("SYS ")) {
                 // SYS 시스템메시지
-                String text = (parts.length >= 2) ? msg.substring(4) : "";
+                String text = msg.substring(4);
                 lobbyPanel.addChatMessage("[시스템] " + text);
-                break;
-            }
-            case "CHAT": {
+
+        } else if (msg.startsWith("CHAT ")) {
                 // CHAT 닉네임 내용
+                String[] parts = msg.split(" ", 3);
                 if (parts.length >= 3) {
                     String nick = parts[1];
-                    String text = msg.substring(6 + nick.length());
+                    String text = parts[2];
                     lobbyPanel.addChatMessage(nick + ": " + text);
                 }
-                break;
-            }
-            case "PLAYER_LIST": {
+
+        } else if (msg.startsWith("PLAYER_LIST ")) {
                 // PLAYER_LIST player1|ready|isHost|score|combo|maxCombo player2|...
                 lobbyPanel.clearPlayers();
                 gamePanel.clearPlayers();
 
                 // 서버에서 받은 플레이어 목록을 파싱
+                String[] parts = msg.split(" ");
                 java.util.List<PlayerInfo> playerList = new java.util.ArrayList<>();
                 for (int i = 1; i < parts.length; i++) {
                     String[] playerData = parts[i].split("\\|");
@@ -230,38 +360,33 @@ public class ArrowGameClientApp extends JFrame {
 
                 // 방장 여부와 다른 플레이어 목록 업데이트
                 lobbyPanel.updateHostStatus(imHost, otherPlayers);
-                break;
-            }
-            case "START_GAME": {
+
+        } else if (msg.equals("START_GAME")) {
                 // 게임 시작 명령
                 cardLayout.show(mainPanel, "GAME");
                 gamePanel.prepareGame();
                 lobbyPanel.addChatMessage("[시스템] 게임이 시작됩니다!");
-                break;
-            }
-            case "GAME_SEQUENCE": {
+
+        } else if (msg.startsWith("GAME_SEQUENCE ")) {
                 // GAME_SEQUENCE stage UP DOWN LEFT RIGHT ...
+                String[] parts = msg.split(" ");
                 if (parts.length >= 2) {
                     int stage = Integer.parseInt(parts[1]);
                     String[] directions = new String[parts.length - 2];
                     System.arraycopy(parts, 2, directions, 0, directions.length);
                     gamePanel.setSequenceFromServer(directions, stage);
                 }
-                break;
-            }
-            case "GAME_END": {
+
+        } else if (msg.equals("GAME_END")) {
                 // 게임 종료
                 int score = gamePanel.getScore();
                 int maxCombo = gamePanel.getMaxCombo();
                 resultPanel.setResult(score, maxCombo);
                 cardLayout.show(mainPanel, "RESULT");
-                break;
-            }
-            default: {
+
+        } else {
                 // 알 수 없는 메시지는 그냥 채팅창에 표시
                 lobbyPanel.addChatMessage(msg);
-                break;
-            }
         }
     }
 

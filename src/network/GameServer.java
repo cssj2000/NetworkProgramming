@@ -7,13 +7,12 @@ import java.util.*;
 
 public class GameServer {
 
-    public static final int PORT = 30000; // 클라이언트랑 맞출 포트 번호
-    public static final int MAX_PLAYERS = 4;
+    public static final int PORT = 30000;
 
     private ServerSocket serverSocket;
     private Vector<ClientHandler> clients = new Vector<>();
-    private Vector<Player> players = new Vector<>();
-    private boolean gameInProgress = false;
+    private Map<String, GameRoom> rooms = new HashMap<>(); // roomId -> GameRoom
+    private Map<String, String> playerRooms = new HashMap<>(); // playerNickname -> roomId
 
     public static void main(String[] args) {
         new GameServer().start();
@@ -28,18 +27,6 @@ public class GameServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket);
 
-                if (players.size() >= MAX_PLAYERS) {
-                    // 방이 가득 찼을 때
-                    try {
-                        DataOutputStream dos = new DataOutputStream(clientSocket.getOutputStream());
-                        dos.writeUTF("SYS 방이 가득 찼습니다.");
-                        clientSocket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    continue;
-                }
-
                 ClientHandler handler = new ClientHandler(clientSocket, this);
                 clients.add(handler);
                 handler.start();
@@ -51,244 +38,200 @@ public class GameServer {
 
     // 닉네임 중복 체크
     public synchronized boolean isNicknameTaken(String nickname) {
-        for (Player p : players) {
-            if (p.getNickname().equals(nickname)) {
-                return true;
-            }
-        }
-        return false;
+        return playerRooms.containsKey(nickname);
     }
 
-    // 플레이어 추가
-    public synchronized void addPlayer(Player player) {
-        if (players.size() < MAX_PLAYERS) {
-            // 첫 번째 플레이어면 방장으로 설정
-            if (players.isEmpty()) {
-                player.setHost(true);
-                System.out.println(player.getNickname() + " is now the host");
-            }
+    // 방 생성
+    public synchronized String createRoom(String roomName, String hostNickname, int maxPlayers) {
+        GameRoom room = new GameRoom(roomName, maxPlayers);
+        rooms.put(room.getRoomId(), room);
+        System.out.println("Room created: " + room.getRoomId() + " - " + roomName);
 
-            players.add(player);
-            System.out.println("Player added: " + player.getNickname() + " (Total: " + players.size() + ")");
-            broadcastPlayerList();
-        }
+        // 방 목록이 변경되었으므로 모든 클라이언트에게 알림
+        broadcastRoomListToLobby();
+
+        return room.getRoomId();
     }
 
-    // 플레이어 제거
-    public synchronized void removePlayer(Player player) {
-        boolean wasHost = player.isHost();
-        players.remove(player);
-        System.out.println("Player removed: " + player.getNickname() + " (Total: " + players.size() + ")");
-
-        // 방장이 나갔으면 다음 사람에게 방장 위임
-        if (wasHost && !players.isEmpty()) {
-            Player newHost = players.get(0);
-            newHost.setHost(true);
-            System.out.println(newHost.getNickname() + " is now the host");
-            broadcast("SYS " + newHost.getNickname() + " 님이 방장이 되었습니다.");
+    // 방 입장
+    public synchronized boolean joinRoom(String roomId, Player player) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) {
+            System.out.println("Room not found: " + roomId);
+            return false;
         }
 
-        broadcastPlayerList();
+        if (room.isFull()) {
+            System.out.println("Room is full: " + roomId);
+            return false;
+        }
+
+        if (room.isInGame()) {
+            System.out.println("Game already in progress: " + roomId);
+            return false;
+        }
+
+        room.addPlayer(player);
+        playerRooms.put(player.getNickname(), roomId);
+        System.out.println(player.getNickname() + " joined room: " + roomId);
+
+        // 방의 모든 플레이어에게 플레이어 목록 브로드캐스트
+        broadcastToRoom(roomId, "SYS " + player.getNickname() + " 님이 입장했습니다.");
+        broadcastPlayerListToRoom(roomId);
+
+        // 방 목록 갱신
+        broadcastRoomListToLobby();
+
+        return true;
     }
 
-    // 클라이언트 핸들러 제거
-    public synchronized void removeClient(ClientHandler handler) {
-        clients.remove(handler);
-    }
+    // 방 나가기
+    public synchronized void leaveRoom(String nickname) {
+        String roomId = playerRooms.get(nickname);
+        if (roomId == null) return;
 
-    // 모든 클라이언트에게 메시지 브로드캐스트
-    public synchronized void broadcast(String msg) {
-        for (ClientHandler ch : clients) {
-            try {
-                ch.sendMessage(msg);
-            } catch (IOException e) {
-                System.err.println("Failed to send message to client: " + e.getMessage());
-            }
-        }
-    }
-
-    // 플레이어 목록 브로드캐스트
-    public synchronized void broadcastPlayerList() {
-        StringBuilder sb = new StringBuilder("PLAYER_LIST");
-        for (Player p : players) {
-            sb.append(" ").append(p.toProtocolString());
-        }
-        broadcast(sb.toString());
-    }
-
-    // 플레이어의 준비 상태 변경
-    public synchronized void setPlayerReady(String nickname, boolean ready) {
-        for (Player p : players) {
-            if (p.getNickname().equals(nickname)) {
-                p.setReady(ready);
-                broadcastPlayerList();
-                break;
-            }
-        }
-    }
-
-    // 방장이 게임 시작 요청
-    public synchronized void requestStartGame(String hostNickname) {
-        // 게임이 이미 진행 중이면 무시
-        if (gameInProgress) {
-            return;
-        }
-
-        // 요청자가 방장인지 확인
-        Player host = null;
-        for (Player p : players) {
-            if (p.getNickname().equals(hostNickname) && p.isHost()) {
-                host = p;
-                break;
-            }
-        }
-
-        if (host == null) {
-            System.out.println("Not authorized to start game: " + hostNickname);
-            return;
-        }
-
-        // 최소 1명 이상 준비되었는지 확인
-        boolean anyReady = false;
-        for (Player p : players) {
-            if (p.isReady()) {
-                anyReady = true;
-                break;
-            }
-        }
-
-        if (!anyReady) {
-            System.out.println("No players ready");
-            return;
-        }
-
-        // 게임 시작
-        System.out.println("Game start requested by host: " + hostNickname);
-        startGame();
-    }
-
-    // 게임 시작
-    private synchronized void startGame() {
-        if (gameInProgress) return;
-
-        gameInProgress = true;
-
-        // 모든 플레이어 점수 및 스테이지 초기화
-        for (Player p : players) {
-            p.setScore(0);
-            p.setCombo(0);
-            p.setCurrentStage(1);
-        }
-
-        broadcast("START_GAME");
-        System.out.println("Game started with " + players.size() + " players");
-
-        // 각 플레이어에게 첫 스테이지 시퀀스 전송
-        for (Player p : players) {
-            sendSequenceToPlayer(p);
-        }
-    }
-
-    // 특정 플레이어에게 시퀀스 전송
-    private synchronized void sendSequenceToPlayer(Player player) {
-        int stage = player.getCurrentStage();
-        int length = 3 + stage - 1; // 1스테이지=3개, 이후 1씩 증가
-
-        String[] directions = {"UP", "DOWN", "LEFT", "RIGHT"};
-        Random rnd = new Random();
-
-        StringBuilder sb = new StringBuilder("GAME_SEQUENCE ");
-        sb.append(stage);
-        for (int i = 0; i < length; i++) {
-            sb.append(" ").append(directions[rnd.nextInt(directions.length)]);
-        }
-
-        try {
-            player.getHandler().sendMessage(sb.toString());
-            System.out.println("Sent sequence to " + player.getNickname() + " for stage " + stage);
-        } catch (IOException e) {
-            System.err.println("Failed to send sequence to " + player.getNickname());
-        }
-    }
-
-    // 플레이어 입력 처리
-    public synchronized void handlePlayerInput(String nickname, String input) {
-        if (!gameInProgress) return;
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
 
         Player player = null;
-        for (Player p : players) {
+        for (Player p : room.getPlayers()) {
             if (p.getNickname().equals(nickname)) {
                 player = p;
                 break;
             }
         }
 
-        if (player == null) return;
+        if (player != null) {
+            room.removePlayer(player);
+            playerRooms.remove(nickname);
+            System.out.println(nickname + " left room: " + roomId);
 
-        // 입력 검증은 클라이언트에서 하고, 서버는 결과만 받음
-        // PLAYER_INPUT SUCCESS|FAIL
-        if (input.equals("SUCCESS")) {
-            player.setScore(player.getScore() + 1);
-            player.setCombo(player.getCombo() + 1);
-
-            // 다음 스테이지로
-            int nextStage = player.getCurrentStage() + 1;
-            if (nextStage > 10) {
-                // 이 플레이어는 게임 완료
-                System.out.println(player.getNickname() + " completed all stages!");
-                checkGameEnd();
+            // 방이 비었으면 삭제
+            if (room.getPlayers().isEmpty()) {
+                rooms.remove(roomId);
+                System.out.println("Room deleted (empty): " + roomId);
             } else {
-                player.setCurrentStage(nextStage);
-                sendSequenceToPlayer(player);
+                // 남은 플레이어들에게 알림
+                broadcastToRoom(roomId, "SYS " + nickname + " 님이 나갔습니다.");
+
+                // 방장이 바뀌었으면 알림
+                if (room.getHost() != null) {
+                    broadcastToRoom(roomId, "SYS " + room.getHost().getNickname() + " 님이 방장이 되었습니다.");
+                }
+
+                broadcastPlayerListToRoom(roomId);
             }
-        } else if (input.equals("FAIL")) {
-            player.setCombo(0);
-            // 같은 스테이지 다시 시도 (시퀀스는 재전송하지 않음)
-        }
 
-        // 점수 업데이트 브로드캐스트
-        broadcastPlayerList();
+            // 방 목록 갱신
+            broadcastRoomListToLobby();
+        }
     }
 
-    // 모든 플레이어가 게임을 완료했는지 확인
-    private void checkGameEnd() {
-        for (Player p : players) {
-            if (p.getCurrentStage() <= 10) {
-                return; // 아직 진행 중인 플레이어가 있음
+    // 방 목록 가져오기
+    public synchronized String getRoomListString() {
+        StringBuilder sb = new StringBuilder("ROOM_LIST");
+        for (GameRoom room : rooms.values()) {
+            sb.append(";").append(room.toProtocolString());
+        }
+        return sb.toString();
+    }
+
+    // 방 이름 가져오기
+    public synchronized String getRoomName(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room != null) {
+            return room.getRoomName();
+        }
+        return "알 수 없는 방";
+    }
+
+    // 특정 방의 플레이어에게만 브로드캐스트
+    public synchronized void broadcastToRoom(String roomId, String msg) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        for (Player p : room.getPlayers()) {
+            try {
+                p.getHandler().sendMessage(msg);
+            } catch (IOException e) {
+                System.err.println("Failed to send message to " + p.getNickname());
             }
         }
-        // 모든 플레이어가 완료
-        endGame();
     }
 
-    // 게임 종료
-    private synchronized void endGame() {
-        gameInProgress = false;
+    // 방의 플레이어 목록 브로드캐스트
+    public synchronized void broadcastPlayerListToRoom(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
 
-        // 모든 플레이어 준비 상태 해제
-        for (Player p : players) {
-            p.setReady(false);
+        StringBuilder sb = new StringBuilder("PLAYER_LIST");
+        for (Player p : room.getPlayers()) {
+            sb.append(" ").append(p.toProtocolString());
         }
 
-        broadcast("GAME_END");
-        broadcastPlayerList();
-        System.out.println("Game ended");
+        broadcastToRoom(roomId, sb.toString());
     }
 
-    public synchronized boolean isGameInProgress() {
-        return gameInProgress;
+    // 방 목록을 방에 없는 모든 클라이언트에게 브로드캐스트
+    public synchronized void broadcastRoomListToLobby() {
+        String roomListMsg = getRoomListString();
+        System.out.println("[DEBUG] Broadcasting room list: " + roomListMsg);
+        System.out.println("[DEBUG] Total clients: " + clients.size());
+
+        int sentCount = 0;
+        for (ClientHandler client : clients) {
+            // 방에 없는 클라이언트에게만 전송
+            Player player = client.getPlayer();
+            if (player != null) {
+                String roomId = playerRooms.get(player.getNickname());
+                if (roomId == null) {
+                    // 방에 없는 클라이언트에게 방 목록 전송
+                    try {
+                        client.sendMessage(roomListMsg);
+                        sentCount++;
+                        System.out.println("[DEBUG] Sent room list to: " + player.getNickname());
+                    } catch (IOException e) {
+                        System.err.println("Failed to send room list to " + player.getNickname());
+                    }
+                } else {
+                    System.out.println("[DEBUG] Skipping " + player.getNickname() + " (in room: " + roomId + ")");
+                }
+            } else {
+                System.out.println("[DEBUG] Skipping client with null player");
+            }
+        }
+        System.out.println("[DEBUG] Room list sent to " + sentCount + " clients");
     }
 
-    public synchronized Vector<Player> getPlayers() {
-        return players;
+    // 플레이어의 준비 상태 변경
+    public synchronized void setPlayerReady(String nickname, boolean ready) {
+        String roomId = playerRooms.get(nickname);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        for (Player p : room.getPlayers()) {
+            if (p.getNickname().equals(nickname)) {
+                p.setReady(ready);
+                broadcastPlayerListToRoom(roomId);
+                break;
+            }
+        }
     }
 
     // 방장 위임
     public synchronized void transferHost(String currentHost, String newHostName) {
+        String roomId = playerRooms.get(currentHost);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
         Player currentHostPlayer = null;
         Player newHostPlayer = null;
 
-        for (Player p : players) {
+        for (Player p : room.getPlayers()) {
             if (p.getNickname().equals(currentHost)) {
                 currentHostPlayer = p;
             }
@@ -301,10 +244,165 @@ public class GameServer {
             currentHostPlayer.setHost(false);
             newHostPlayer.setHost(true);
             System.out.println("Host transferred from " + currentHost + " to " + newHostName);
-            broadcast("SYS " + newHostName + " 님이 방장이 되었습니다.");
-            broadcastPlayerList();
+            broadcastToRoom(roomId, "SYS " + newHostName + " 님이 방장이 되었습니다.");
+            broadcastPlayerListToRoom(roomId);
         }
     }
+
+    // 게임 시작 요청
+    public synchronized void requestStartGame(String hostNickname) {
+        String roomId = playerRooms.get(hostNickname);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        if (room.isInGame()) {
+            System.out.println("Game already in progress");
+            return;
+        }
+
+        // 방장 확인
+        Player host = room.getHost();
+        if (host == null || !host.getNickname().equals(hostNickname)) {
+            System.out.println("Not authorized to start game: " + hostNickname);
+            return;
+        }
+
+        // 최소 1명 준비 확인
+        boolean anyReady = false;
+        for (Player p : room.getPlayers()) {
+            if (p.isReady()) {
+                anyReady = true;
+                break;
+            }
+        }
+
+        if (!anyReady) {
+            System.out.println("No players ready");
+            return;
+        }
+
+        // 게임 시작
+        startGame(roomId);
+    }
+
+    // 게임 시작
+    private synchronized void startGame(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        room.setInGame(true);
+        room.setCurrentStage(1);
+
+        // 모든 플레이어 점수 초기화
+        for (Player p : room.getPlayers()) {
+            p.setScore(0);
+            p.setCombo(0);
+            p.setCurrentStage(1);
+        }
+
+        broadcastToRoom(roomId, "START_GAME");
+        System.out.println("Game started in room: " + roomId);
+
+        // 각 플레이어에게 첫 스테이지 시퀀스 전송
+        for (Player p : room.getPlayers()) {
+            sendSequenceToPlayer(p);
+        }
+    }
+
+    // 플레이어에게 시퀀스 전송
+    private synchronized void sendSequenceToPlayer(Player player) {
+        int stage = player.getCurrentStage();
+        int length = 3 + stage - 1;
+
+        String[] directions = {"UP", "DOWN", "LEFT", "RIGHT"};
+        Random rnd = new Random();
+
+        StringBuilder sb = new StringBuilder("GAME_SEQUENCE ");
+        sb.append(stage);
+        for (int i = 0; i < length; i++) {
+            sb.append(" ").append(directions[rnd.nextInt(directions.length)]);
+        }
+
+        try {
+            player.getHandler().sendMessage(sb.toString());
+        } catch (IOException e) {
+            System.err.println("Failed to send sequence to " + player.getNickname());
+        }
+    }
+
+    // 플레이어 입력 처리
+    public synchronized void handlePlayerInput(String nickname, String input) {
+        String roomId = playerRooms.get(nickname);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null || !room.isInGame()) return;
+
+        Player player = null;
+        for (Player p : room.getPlayers()) {
+            if (p.getNickname().equals(nickname)) {
+                player = p;
+                break;
+            }
+        }
+
+        if (player == null) return;
+
+        if (input.equals("SUCCESS")) {
+            player.setScore(player.getScore() + 1);
+            player.setCombo(player.getCombo() + 1);
+
+            int nextStage = player.getCurrentStage() + 1;
+            if (nextStage > 10) {
+                System.out.println(player.getNickname() + " completed all stages!");
+                checkGameEnd(roomId);
+            } else {
+                player.setCurrentStage(nextStage);
+                sendSequenceToPlayer(player);
+            }
+        } else if (input.equals("FAIL")) {
+            player.setCombo(0);
+        }
+
+        broadcastPlayerListToRoom(roomId);
+    }
+
+    // 게임 종료 확인
+    private void checkGameEnd(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        for (Player p : room.getPlayers()) {
+            if (p.getCurrentStage() <= 10) {
+                return;
+            }
+        }
+
+        // 모든 플레이어가 완료
+        endGame(roomId);
+    }
+
+    // 게임 종료
+    private synchronized void endGame(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        room.setInGame(false);
+
+        // 모든 플레이어 준비 상태 해제
+        for (Player p : room.getPlayers()) {
+            p.setReady(false);
+        }
+
+        broadcastToRoom(roomId, "GAME_END");
+        broadcastPlayerListToRoom(roomId);
+        System.out.println("Game ended in room: " + roomId);
+    }
+
+    // 클라이언트 핸들러 제거
+    public synchronized void removeClient(ClientHandler handler) {
+        clients.remove(handler);
+    }
 }
-
-

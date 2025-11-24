@@ -11,6 +11,7 @@ class ClientHandler extends Thread {
     private DataOutputStream dos;
     private GameServer server;
     private Player player;
+    private String currentRoomId;
 
     public ClientHandler(Socket socket, GameServer server) {
         this.socket = socket;
@@ -26,6 +27,10 @@ class ClientHandler extends Thread {
     public void sendMessage(String msg) throws IOException {
         dos.writeUTF(msg);
         dos.flush();
+    }
+
+    public Player getPlayer() {
+        return player;
     }
 
     @Override
@@ -48,27 +53,67 @@ class ClientHandler extends Thread {
                     }
 
                     player = new Player(nickname, this);
-                    server.addPlayer(player);
                     sendMessage("JOIN_OK");
-                    server.broadcast("SYS " + nickname + " 님이 입장했습니다.");
+
+                } else if (line.equals("REQUEST_ROOM_LIST")) {
+                    // 방 목록 요청
+                    String roomList = server.getRoomListString();
+                    System.out.println("[DEBUG] Client " + (player != null ? player.getNickname() : "unknown") + " requested room list");
+                    System.out.println("[DEBUG] Sending room list: " + roomList);
+                    sendMessage(roomList);
+
+                } else if (line.startsWith("CREATE_ROOM ")) {
+                    // CREATE_ROOM 방이름
+                    if (player != null) {
+                        String roomName = line.substring(12).trim();
+                        if (roomName.isEmpty()) roomName = player.getNickname() + "의 방";
+
+                        String roomId = server.createRoom(roomName, player.getNickname(), 4);
+                        if (server.joinRoom(roomId, player)) {
+                            currentRoomId = roomId;
+                            String actualRoomName = server.getRoomName(roomId);
+                            sendMessage("ROOM_JOINED " + roomId + "|" + actualRoomName);
+                        }
+                    }
+
+                } else if (line.startsWith("JOIN_ROOM ")) {
+                    // JOIN_ROOM roomId
+                    if (player != null) {
+                        String roomId = line.substring(10).trim();
+                        if (server.joinRoom(roomId, player)) {
+                            currentRoomId = roomId;
+                            String roomName = server.getRoomName(roomId);
+                            sendMessage("ROOM_JOINED " + roomId + "|" + roomName);
+                        } else {
+                            sendMessage("JOIN_ROOM_FAILED 방에 입장할 수 없습니다.");
+                        }
+                    }
+
+                } else if (line.equals("LEAVE_ROOM")) {
+                    // 방 나가기
+                    if (player != null && currentRoomId != null) {
+                        server.leaveRoom(player.getNickname());
+                        currentRoomId = null;
+                        sendMessage("LEFT_ROOM");
+                    }
 
                 } else if (line.startsWith("CHAT ")) {
                     // CHAT 내용
                     String text = line.substring(5);
-                    if (player != null) {
-                        server.broadcast("CHAT " + player.getNickname() + " " + text);
+                    if (player != null && currentRoomId != null) {
+                        server.broadcastToRoom(currentRoomId, "CHAT " + player.getNickname() + " " + text);
                     }
 
                 } else if (line.equals("READY")) {
-                    if (player != null) {
+                    if (player != null && currentRoomId != null) {
                         server.setPlayerReady(player.getNickname(), true);
-                        server.broadcast("SYS " + player.getNickname() + " 님이 준비했습니다.");
+                        server.broadcastToRoom(currentRoomId, "SYS " + player.getNickname() + " 님이 준비했습니다.");
                     }
 
                 } else if (line.equals("UNREADY")) {
-                    if (player != null) {
+                    if (player != null && currentRoomId != null) {
                         server.setPlayerReady(player.getNickname(), false);
-                        server.broadcast("SYS " + player.getNickname() + " 님이 준비를 취소했습니다.");
+                        server.broadcastToRoom(currentRoomId, "SYS " + player.getNickname() + " 님이 준비를 취소했습니다.");
                     }
 
                 } else if (line.startsWith("PLAYER_INPUT ")) {
@@ -92,27 +137,24 @@ class ClientHandler extends Thread {
                     }
 
                 } else if (line.equals("QUIT")) {
-                    if (player != null) {
-                        server.broadcast("SYS " + player.getNickname() + " 님이 나갔습니다.");
+                    if (player != null && currentRoomId != null) {
+                        server.leaveRoom(player.getNickname());
                     }
                     break;
 
                 } else {
                     // 그 외 문자열은 그냥 시스템 메시지로 브로드캐스트
-                    if (player != null) {
-                        server.broadcast("SYS " + player.getNickname() + ": " + line);
+                    if (player != null && currentRoomId != null) {
+                        server.broadcastToRoom(currentRoomId, "SYS " + player.getNickname() + ": " + line);
                     }
                 }
             }
         } catch (IOException e) {
             System.out.println("Connection lost: " + (player != null ? player.getNickname() : "Unknown") + " / " + socket);
-            if (player != null) {
-                server.broadcast("SYS " + player.getNickname() + " 님 연결이 끊어졌습니다.");
-            }
         } finally {
             try { socket.close(); } catch (IOException ignored) {}
-            if (player != null) {
-                server.removePlayer(player);
+            if (player != null && currentRoomId != null) {
+                server.leaveRoom(player.getNickname());
             }
             server.removeClient(this);
         }
