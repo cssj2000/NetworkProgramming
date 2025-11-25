@@ -301,6 +301,7 @@ public class GameServer {
             p.setSuccessCount(0);
             p.setCombo(0);
             p.setCurrentStage(1);
+            p.setFinished(false);
         }
 
         broadcastToRoom(roomId, "START_GAME");
@@ -373,6 +374,7 @@ public class GameServer {
             int nextStage = player.getCurrentStage() + 1;
             if (nextStage > 20) {
                 System.out.println(player.getNickname() + " completed all stages (Stage 20)!");
+                player.setFinished(true);
                 checkGameEnd(roomId);
             } else {
                 player.setCurrentStage(nextStage);
@@ -381,6 +383,10 @@ public class GameServer {
         } else if (input.equals("FAIL")) {
             System.out.println("[SCORE] " + player.getNickname() + " - 실패! 콤보 초기화");
             player.setCombo(0);
+        } else if (input.equals("TIME_UP")) {
+            System.out.println("[TIME_UP] " + player.getNickname() + " - 타이머 종료");
+            player.setFinished(true);
+            checkGameEnd(roomId);
         }
 
         broadcastPlayerListToRoom(roomId);
@@ -392,14 +398,14 @@ public class GameServer {
         if (room == null) return;
 
         for (Player p : room.getPlayers()) {
-            if (p.getCurrentStage() <= 20) {
-                System.out.println("[GAME_END_CHECK] " + p.getNickname() + " is at stage " + p.getCurrentStage() + ", waiting...");
+            if (!p.isFinished()) {
+                System.out.println("[GAME_END_CHECK] " + p.getNickname() + " is not finished yet (stage " + p.getCurrentStage() + "), waiting...");
                 return;
             }
         }
 
         // 모든 플레이어가 완료
-        System.out.println("[GAME_END_CHECK] All players completed! Ending game...");
+        System.out.println("[GAME_END_CHECK] All players finished! Ending game...");
         endGame(roomId);
     }
 

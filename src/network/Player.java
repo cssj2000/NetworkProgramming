@@ -9,6 +9,7 @@ public class Player {
     private int combo;
     private int maxCombo;
     private int currentStage;
+    private boolean finished; // 게임 완료 여부 (타이머 종료 또는 20 스테이지 완료)
     private ClientHandler handler;
 
     public Player(String nickname, ClientHandler handler) {
@@ -21,6 +22,7 @@ public class Player {
         this.combo = 0;
         this.maxCombo = 0;
         this.currentStage = 1;
+        this.finished = false;
     }
 
     public String getNickname() {
@@ -84,6 +86,14 @@ public class Player {
 
     public void setCurrentStage(int currentStage) {
         this.currentStage = currentStage;
+    }
+
+    public boolean isFinished() {
+        return finished;
+    }
+
+    public void setFinished(boolean finished) {
+        this.finished = finished;
     }
 
     public ClientHandler getHandler() {

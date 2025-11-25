@@ -239,9 +239,11 @@ public class GamePanel extends JPanel implements KeyListener {
             updateTimeLabel();
             if (remainingSeconds <= 0) {
                 gameTimer.stop();
-                if (onGameEndListener != null) {
-                    onGameEndListener.onGameEnd(score, maxCombo);
+                // 서버에 타이머 종료 알림
+                if (inputSender != null) {
+                    inputSender.sendInput("TIME_UP");
                 }
+                statusLabel.setText("게임 종료. 결과를 집계하는 중...");
             }
         });
         gameTimer.start();

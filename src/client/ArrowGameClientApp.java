@@ -95,10 +95,12 @@ public class ArrowGameClientApp extends JFrame {
             }
         });
 
-        gamePanel.setOnGameEndListener((score, maxCombo) -> {
-            resultPanel.setResult(score, maxCombo);
-            cardLayout.show(mainPanel, "RESULT");
-        });
+        // 더 이상 로컬에서 게임 종료를 처리하지 않음
+        // 서버의 GAME_RANKING과 GAME_END 메시지를 기다림
+        // gamePanel.setOnGameEndListener((score, maxCombo) -> {
+        //     resultPanel.setResult(score, maxCombo);
+        //     cardLayout.show(mainPanel, "RESULT");
+        // });
 
         // GamePanel의 입력을 서버로 전송
         gamePanel.setInputSender(result -> {
