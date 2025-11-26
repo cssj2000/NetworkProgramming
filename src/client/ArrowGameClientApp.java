@@ -113,6 +113,17 @@ public class ArrowGameClientApp extends JFrame {
             }
         });
 
+        // GamePanel의 게임 상태를 서버로 전송
+        gamePanel.setGameStateSender(stateData -> {
+            if (gameClient != null) {
+                try {
+                    gameClient.send("GAME_STATE " + stateData);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
         resultPanel.setOnExitListener(() -> {
             // 로비로 돌아가기 (방은 유지)
             cardLayout.show(mainPanel, "LOBBY");
@@ -346,12 +357,16 @@ public class ArrowGameClientApp extends JFrame {
                 // 나머지 플레이어들을 1, 2, 3번에 배치
                 int slot = 1;
                 java.util.List<String> otherPlayers = new java.util.ArrayList<>();
+                java.util.Set<String> currentPlayers = new java.util.HashSet<>();
                 for (PlayerInfo info : playerList) {
-                    if (!info.name.equals(myNickname) && slot < 4) {
-                        lobbyPanel.setPlayerInfo(slot, info.name, info.ready, info.isHost);
-                        gamePanel.setPlayerInfo(slot, info.name, info.score, info.combo);
-                        otherPlayers.add(info.name);
-                        slot++;
+                    if (!info.name.equals(myNickname)) {
+                        currentPlayers.add(info.name);
+                        if (slot < 4) {
+                            lobbyPanel.setPlayerInfo(slot, info.name, info.ready, info.isHost);
+                            gamePanel.setPlayerInfo(slot, info.name, info.score, info.combo);
+                            otherPlayers.add(info.name);
+                            slot++;
+                        }
                     }
                 }
 
@@ -362,7 +377,71 @@ public class ArrowGameClientApp extends JFrame {
                 // 게임 시작 명령
                 cardLayout.show(mainPanel, "GAME");
                 gamePanel.prepareGame();
+
+                // 미니뷰 초기화: 다른 플레이어들의 미니뷰 추가
+                gamePanel.clearMiniViews();
+                // 현재 방에 있는 다른 플레이어들을 파악하여 미니뷰 추가
+                // (PLAYER_LIST 메시지를 통해 이미 파악되어 있어야 함)
+
                 lobbyPanel.addChatMessage("[시스템] 게임이 시작됩니다!");
+
+        } else if (msg.startsWith("GAME_STATE ")) {
+                // GAME_STATE nickname stage currentIndex totalCount score combo sequence...
+                // 예: GAME_STATE player1 5 3 10 1500 5 UP DOWN LEFT RIGHT UP DOWN LEFT RIGHT UP DOWN
+                String[] parts = msg.split(" ");
+                if (parts.length >= 7) {
+                    String playerName = parts[1];
+
+                    // 자기 자신의 상태는 무시
+                    if (playerName.equals(myNickname)) {
+                        return;
+                    }
+
+                    // 미니뷰가 없으면 추가
+                    gamePanel.addMiniView(playerName);
+
+                    int stage = Integer.parseInt(parts[2]);
+                    int currentIndex = Integer.parseInt(parts[3]);
+                    int totalCount = Integer.parseInt(parts[4]);
+                    int score = Integer.parseInt(parts[5]);
+                    int combo = Integer.parseInt(parts[6]);
+
+                    // 시퀀스 파싱
+                    java.util.List<Direction> sequence = new java.util.ArrayList<>();
+                    java.util.List<Color> arrowColors = new java.util.ArrayList<>();
+                    java.util.Random rnd = new java.util.Random();
+
+                    for (int i = 7; i < parts.length && i < 7 + totalCount; i++) {
+                        try {
+                            Direction d = Direction.valueOf(parts[i]);
+                            sequence.add(d);
+
+                            // 색상은 간단하게 방향별 기본 색상 사용
+                            if (stage >= 5) {
+                                Color[] palette = {
+                                    new Color(255, 120, 120),
+                                    new Color(120, 200, 120),
+                                    new Color(120, 180, 255),
+                                    new Color(255, 190, 120),
+                                    new Color(200, 120, 255)
+                                };
+                                arrowColors.add(palette[rnd.nextInt(palette.length)]);
+                            } else {
+                                switch (d) {
+                                    case UP:    arrowColors.add(new Color(255, 120, 120)); break;
+                                    case DOWN:  arrowColors.add(new Color(120, 180, 255)); break;
+                                    case LEFT:  arrowColors.add(new Color(120, 180, 255)); break;
+                                    case RIGHT: arrowColors.add(new Color(120, 200, 120)); break;
+                                }
+                            }
+                        } catch (IllegalArgumentException e) {
+                            // 잘못된 방향은 무시
+                        }
+                    }
+
+                    // 미니뷰 업데이트
+                    gamePanel.updateOpponentGameState(playerName, score, combo, sequence, arrowColors, currentIndex);
+                }
 
         } else if (msg.startsWith("GAME_SEQUENCE ")) {
                 // GAME_SEQUENCE stage UP DOWN LEFT RIGHT ...

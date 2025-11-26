@@ -42,6 +42,10 @@ public class GamePanel extends JPanel implements KeyListener {
 
     private ArrowPanel arrowPanel = new ArrowPanel();
 
+    // 미니뷰 관리
+    private java.util.Map<String, MiniGameView> miniViews = new java.util.HashMap<>();
+    private JPanel miniViewContainer;
+
     public interface GameEndListener {
         void onGameEnd(int score, int maxCombo);
     }
@@ -50,8 +54,13 @@ public class GamePanel extends JPanel implements KeyListener {
         void sendInput(String result);
     }
 
+    public interface GameStateSender {
+        void sendGameState(String stateData);
+    }
+
     private GameEndListener onGameEndListener;
     private InputSender inputSender;
+    private GameStateSender gameStateSender;
 
     public GamePanel() {
         setLayout(new BorderLayout());
@@ -98,10 +107,14 @@ public class GamePanel extends JPanel implements KeyListener {
 
         add(top, BorderLayout.NORTH);
 
-        // -------- 중앙: 화살표 카드 --------
+        // -------- 중앙: 메인 게임 영역 + 미니뷰 영역 --------
+        JPanel mainContainer = new JPanel(new BorderLayout(10, 0));
+        mainContainer.setOpaque(false);
+
+        // 메인 게임 카드
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(false);
-        center.setBorder(BorderFactory.createEmptyBorder(30, 80, 30, 80)); // 좌우 여백 조금 줄여 넓게
+        center.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 10)); // 오른쪽 여백 줄임
 
         JPanel card = new JPanel(new BorderLayout());
         card.setBackground(Color.WHITE);
@@ -133,7 +146,17 @@ public class GamePanel extends JPanel implements KeyListener {
         card.add(bottomText, BorderLayout.SOUTH);
         center.add(card, BorderLayout.CENTER);
 
-        add(center, BorderLayout.CENTER);
+        // 미니뷰 컨테이너 (오른쪽)
+        miniViewContainer = new JPanel();
+        miniViewContainer.setLayout(new BoxLayout(miniViewContainer, BoxLayout.Y_AXIS));
+        miniViewContainer.setOpaque(false);
+        miniViewContainer.setBorder(BorderFactory.createEmptyBorder(30, 10, 30, 20));
+        miniViewContainer.setPreferredSize(new Dimension(270, 0));
+
+        mainContainer.add(center, BorderLayout.CENTER);
+        mainContainer.add(miniViewContainer, BorderLayout.EAST);
+
+        add(mainContainer, BorderLayout.CENTER);
 
         setFocusable(true);
         addKeyListener(this);
@@ -176,11 +199,75 @@ public class GamePanel extends JPanel implements KeyListener {
         this.inputSender = sender;
     }
 
+    public void setGameStateSender(GameStateSender sender) {
+        this.gameStateSender = sender;
+    }
+
     /** 나중에 서버에서 닉네임 내려줄 때 사용 가능 */
     public void setPlayerName(int index, String name) {
         if (index >= 0 && index < playerNameLabels.length) {
             playerNameLabels[index].setText(name);
         }
+    }
+
+    // ====== 미니뷰 관리 메서드 ======
+
+    /** 다른 플레이어의 미니뷰 추가 */
+    public void addMiniView(String playerName) {
+        if (!miniViews.containsKey(playerName)) {
+            MiniGameView miniView = new MiniGameView(playerName);
+            miniViews.put(playerName, miniView);
+            miniViewContainer.add(miniView);
+            miniViewContainer.add(Box.createVerticalStrut(10));
+            miniViewContainer.revalidate();
+            miniViewContainer.repaint();
+        }
+    }
+
+    /** 다른 플레이어의 미니뷰 제거 */
+    public void removeMiniView(String playerName) {
+        MiniGameView miniView = miniViews.remove(playerName);
+        if (miniView != null) {
+            miniViewContainer.remove(miniView);
+            miniViewContainer.revalidate();
+            miniViewContainer.repaint();
+        }
+    }
+
+    /** 모든 미니뷰 제거 */
+    public void clearMiniViews() {
+        miniViews.clear();
+        miniViewContainer.removeAll();
+        miniViewContainer.revalidate();
+        miniViewContainer.repaint();
+    }
+
+    /** 다른 플레이어의 게임 상태 업데이트 */
+    public void updateOpponentGameState(String playerName, int score, int combo,
+                                         List<Direction> sequence, List<Color> arrowColors, int currentIndex) {
+        MiniGameView miniView = miniViews.get(playerName);
+        if (miniView != null) {
+            miniView.updateGameState(score, combo, sequence, arrowColors, currentIndex);
+        }
+    }
+
+    /** 내 게임 상태를 서버로 전송 */
+    private void sendMyGameState() {
+        if (gameStateSender == null) return;
+
+        // GAME_STATE stage currentIndex totalCount score combo sequence...
+        StringBuilder sb = new StringBuilder();
+        sb.append(stage).append(" ");
+        sb.append(currentIndex).append(" ");
+        sb.append(sequence.size()).append(" ");
+        sb.append(score).append(" ");
+        sb.append(combo);
+
+        for (Direction d : sequence) {
+            sb.append(" ").append(d.name());
+        }
+
+        gameStateSender.sendGameState(sb.toString());
     }
 
     // ---- 플레이어 정보 동기화 메서드 ----
@@ -389,6 +476,9 @@ public class GamePanel extends JPanel implements KeyListener {
         difficultyLabel.setText("난이도: " + sequence.size() + "개 화살표");
         arrowPanel.repaint();
         requestFocusInWindow();
+
+        // 새 시퀀스 시작 시 게임 상태 전송
+        sendMyGameState();
     }
 
     // 서버에서 시퀀스를 내려줄 때 사용하도록 준비 (Direction 리스트) - 호환성 유지
@@ -459,6 +549,9 @@ public class GamePanel extends JPanel implements KeyListener {
             arrowPanel.setCurrentIndex(currentIndex);
             arrowPanel.repaint();
 
+            // 게임 상태 전송 (진행 중)
+            sendMyGameState();
+
             if (currentIndex == sequence.size()) {
                 // 스테이지 클리어
                 bigMessageLabel.setForeground(new Color(0, 200, 120));
@@ -472,6 +565,9 @@ public class GamePanel extends JPanel implements KeyListener {
                 if (inputSender != null) {
                     inputSender.sendInput("SUCCESS");
                 }
+
+                // 게임 상태 전송 (완료)
+                sendMyGameState();
 
                 // 서버에서 다음 시퀀스를 보내줄 때까지 대기
                 statusLabel.setText("다음 스테이지를 기다리는 중...");
@@ -492,6 +588,9 @@ public class GamePanel extends JPanel implements KeyListener {
             if (inputSender != null) {
                 inputSender.sendInput("FAIL");
             }
+
+            // 게임 상태 전송 (실패 후 초기화)
+            sendMyGameState();
         }
     }
 

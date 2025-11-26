@@ -392,6 +392,31 @@ public class GameServer {
         broadcastPlayerListToRoom(roomId);
     }
 
+    // 플레이어의 게임 상태 업데이트 처리
+    public synchronized void handleGameState(String nickname, String stateData) {
+        String roomId = playerRooms.get(nickname);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null || !room.isInGame()) return;
+
+        // GAME_STATE nickname stage currentIndex totalCount score combo sequence
+        // 예: GAME_STATE player1 5 3 10 1500 5 UP DOWN LEFT RIGHT UP DOWN LEFT RIGHT UP DOWN
+        // 다른 플레이어들에게 브로드캐스트
+        String msg = "GAME_STATE " + nickname + " " + stateData;
+
+        for (Player p : room.getPlayers()) {
+            // 본인 제외
+            if (!p.getNickname().equals(nickname)) {
+                try {
+                    p.getHandler().sendMessage(msg);
+                } catch (IOException e) {
+                    System.err.println("Failed to send game state to " + p.getNickname());
+                }
+            }
+        }
+    }
+
     // 게임 종료 확인
     private void checkGameEnd(String roomId) {
         GameRoom room = rooms.get(roomId);

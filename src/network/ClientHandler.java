@@ -123,6 +123,13 @@ class ClientHandler extends Thread {
                         server.handlePlayerInput(player.getNickname(), result);
                     }
 
+                } else if (line.startsWith("GAME_STATE ")) {
+                    // GAME_STATE stage currentIndex totalCount score combo sequence...
+                    if (player != null) {
+                        String stateData = line.substring(11).trim();
+                        server.handleGameState(player.getNickname(), stateData);
+                    }
+
                 } else if (line.startsWith("TRANSFER_HOST ")) {
                     // TRANSFER_HOST 새방장닉네임
                     if (player != null) {

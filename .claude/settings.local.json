@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(javac:*)"
+      "Bash(javac:*)",
+      "Bash(dir /s /b)",
+      "Bash(dir \"C:\\Projects\\PolloAndFrito\")",
+      "Bash(tree:*)",
+      "Bash(explorer /select,\"C:\\Projects\\PolloAndFrito\\주간_작업_보고서.md\")"
     ],
     "deny": [],
     "ask": []
