@@ -75,7 +75,7 @@ public class GameServer {
         playerRooms.put(player.getNickname(), roomId);
         System.out.println(player.getNickname() + " joined room: " + roomId);
 
-        // 방의 모든 플레이어에게 플레이어 목록 브로드캐스트
+        // 방의 모든 플레이어에게 플레이어 목록 브   로드캐스트
         broadcastToRoom(roomId, "SYS " + player.getNickname() + " 님이 입장했습니다.");
         broadcastPlayerListToRoom(roomId);
 

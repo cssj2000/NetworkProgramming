@@ -97,10 +97,19 @@ public class ResultPanel extends JPanel {
 
     // 랭킹 정보 설정
     public void setRankingResult(List<PlayerRankInfo> rankings) {
+        rankings.sort((a, b) -> Integer.compare(b.score, a.score));
         tableModel.setRowCount(0);
+
+        int currentRank = 0;
+        int prevScore = Integer.MIN_VALUE;
 
         for (int i = 0; i < rankings.size(); i++) {
             PlayerRankInfo info = rankings.get(i);
+            if (info.score != prevScore) {
+                currentRank = i + 1;
+                prevScore = info.score;
+            }
+
             String rank = (i + 1) + "위";
             if (i == 0) rank = "🥇 1위";
             else if (i == 1) rank = "🥈 2위";
@@ -143,5 +152,6 @@ public class ResultPanel extends JPanel {
             this.successCount = successCount;
             this.maxCombo = maxCombo;
         }
+
     }
 }

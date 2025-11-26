@@ -7,6 +7,8 @@ import java.awt.event.KeyListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import javax.sound.sampled.*;   // ✅ 추가
+
 
 public class GamePanel extends JPanel implements KeyListener {
 
@@ -23,6 +25,10 @@ public class GamePanel extends JPanel implements KeyListener {
     private int remainingSeconds = 60;
     private Timer gameTimer;
 
+    //사운드
+    private Clip bgmClip;    // 배경음
+    private Clip keyClip;    // 키 입력 효과음
+    private Clip wrongClip;  // 틀렸을 때 효과음
     // 상단 플레이어 정보
     private JLabel[] playerNameLabels = new JLabel[4];
     private JLabel[] playerScoreLabels = new JLabel[4];
@@ -143,6 +149,7 @@ public class GamePanel extends JPanel implements KeyListener {
         resetGame();
         startTimer();
         startNewStageInternal();
+        startBGM();
     }
 
     /** 결과 화면에서 돌아올 때 등 필요하면 사용 가능 */
@@ -220,6 +227,8 @@ public class GamePanel extends JPanel implements KeyListener {
         requestFocusInWindow();
         bigMessageLabel.setText("");
         statusLabel.setText("시퀀스를 기다리는 중...");
+
+        startBGM();
     }
 
     // ====== 내부 게임 진행 로직 ======
@@ -239,6 +248,7 @@ public class GamePanel extends JPanel implements KeyListener {
             updateTimeLabel();
             if (remainingSeconds <= 0) {
                 gameTimer.stop();
+                stopBGM();
                 // 서버에 타이머 종료 알림
                 if (inputSender != null) {
                     inputSender.sendInput("TIME_UP");
@@ -248,7 +258,75 @@ public class GamePanel extends JPanel implements KeyListener {
         });
         gameTimer.start();
     }
+    // ✅ 키 입력 효과음
+    private void playKeySound() {
+        try {
+            if (keyClip == null) {
+                AudioInputStream ais = AudioSystem.getAudioInputStream(
+                        getClass().getResource( "/sounds/key.wav"));
+                keyClip = AudioSystem.getClip();
+                keyClip.open(ais);
+            }
+            keyClip.stop();
+            keyClip.setFramePosition(0);
+            keyClip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // ✅ 틀렸을 때 효과 (소리 + 화살표 영역 깜빡임)
+    private void playWrongEffect() {
+        try {
+            if (wrongClip == null) {
+                AudioInputStream ais = AudioSystem.getAudioInputStream(
+                        getClass().getResource("/sounds/wrong.wav"));
+                wrongClip = AudioSystem.getClip();
+                wrongClip.open(ais);
+            }
+            wrongClip.stop();
+            wrongClip.setFramePosition(0);
+            wrongClip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
+        // 🔴 화살표 영역 깜빡이게 만들기
+        Color originalBg = arrowPanel.getBackground();
+        boolean originalOpaque = arrowPanel.isOpaque();
+
+        arrowPanel.setOpaque(true);
+        arrowPanel.setBackground(new Color(255, 200, 200));  // 연한 빨강
+        arrowPanel.repaint();
+
+        new javax.swing.Timer(150, ev -> {
+            arrowPanel.setBackground(originalBg);
+            arrowPanel.setOpaque(originalOpaque);
+            arrowPanel.repaint();
+            ((javax.swing.Timer) ev.getSource()).stop();
+        }).start();
+    }
+
+    // ✅ 배경음 시작
+    private void startBGM() {
+        try {
+            if (bgmClip == null) {
+                AudioInputStream ais = AudioSystem.getAudioInputStream(
+                        getClass().getResource("/sounds/background.wav"));
+                bgmClip = AudioSystem.getClip();
+                bgmClip.open(ais);
+            }
+            bgmClip.loop(Clip.LOOP_CONTINUOUSLY);  // 계속 반복 재생
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ✅ 배경음 정지
+    private void stopBGM() {
+        if (bgmClip != null && bgmClip.isRunning()) {
+            bgmClip.stop();
+        }
+    }
     private void updatePlayerStats() {
         // 지금은 플레이어1(인덱스 0)만 사용
         playerScoreLabels[0].setText("성공: " + score);
@@ -371,8 +449,11 @@ public class GamePanel extends JPanel implements KeyListener {
             case KeyEvent.VK_RIGHT: inputDir = Direction.RIGHT; break;
         }
         if (inputDir == null) return;
+        playKeySound();
 
         Direction correct = sequence.get(currentIndex);
+        SoundPlayer.playForMillis("/sounds/wrong.wav", this, 400);
+
         if (inputDir == correct) {
             currentIndex++;
             arrowPanel.setCurrentIndex(currentIndex);
@@ -397,8 +478,10 @@ public class GamePanel extends JPanel implements KeyListener {
             }
         } else {
             // 실패
+            SoundPlayer.playForMillis("/sounds/key.wav", this, 500);
             bigMessageLabel.setForeground(new Color(230, 80, 80));
             bigMessageLabel.setText("다시!");
+            playWrongEffect();
             combo = 0;
             currentIndex = 0;
             arrowPanel.setCurrentIndex(0);

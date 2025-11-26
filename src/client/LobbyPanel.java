@@ -2,6 +2,7 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
+import javax.sound.sampled.*;
 
 public class LobbyPanel extends JPanel {
 
@@ -18,7 +19,7 @@ public class LobbyPanel extends JPanel {
 
     private boolean isHost = false;
     private java.util.List<String> otherPlayerNames = new java.util.ArrayList<>();
-
+    private Clip chatClip;
     // ---- 네트워크 쪽으로 문자열을 보내기 위한 인터페이스 ----
     public interface NetworkSender {
         void send(String msg);
@@ -260,10 +261,13 @@ public class LobbyPanel extends JPanel {
 
         chatInput.setText("");
     }
+    // ✅ 채팅 알림음 재생
 
     // ---- 서버에서 온 내용을 채팅창에 추가할 때 사용 ----
     public void addChatMessage(String msg) {
         chatArea.append(msg + "\n");
+        SoundPlayer.playForMillis("/sounds/chat.wav", this, 500);
+
     }
 
     // ---- ArrowGameClientApp에서 내 닉네임 전송할 때 사용 ----
