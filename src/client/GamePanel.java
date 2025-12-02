@@ -542,7 +542,7 @@ public class GamePanel extends JPanel implements KeyListener {
         playKeySound();
 
         Direction correct = sequence.get(currentIndex);
-        SoundPlayer.playForMillis("/sounds/wrong.wav", this, 400);
+        SoundPlayer.playForMillis("/sounds/key.wav", this, 400);
 
         if (inputDir == correct) {
             currentIndex++;

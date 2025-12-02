@@ -235,266 +235,286 @@ public class ArrowGameClientApp extends JFrame {
         System.out.println("From server: " + msg);
 
         if (msg.startsWith("ROOM_LIST")) {
-                // ROOM_LIST;roomId|roomName|current|max|inGame;roomId2|...
-                java.util.List<RoomListPanel.RoomInfo> rooms = new java.util.ArrayList<>();
-                System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING START =====");
-                System.out.println("[DEBUG CLIENT] Full message: " + msg);
-                String data = msg.substring("ROOM_LIST".length());
-                System.out.println("[DEBUG CLIENT] Data after substring: [" + data + "]");
-                System.out.println("[DEBUG CLIENT] Data length: " + data.length());
+            // ROOM_LIST;roomId|roomName|current|max|inGame;roomId2|...
+            java.util.List<RoomListPanel.RoomInfo> rooms = new java.util.ArrayList<>();
+            System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING START =====");
+            System.out.println("[DEBUG CLIENT] Full message: " + msg);
+            String data = msg.substring("ROOM_LIST".length());
+            System.out.println("[DEBUG CLIENT] Data after substring: [" + data + "]");
+            System.out.println("[DEBUG CLIENT] Data length: " + data.length());
 
-                if (data.length() > 0) {
-                    String[] roomEntries = data.split(";");
-                    System.out.println("[DEBUG CLIENT] Split result - array length: " + roomEntries.length);
-                    for (int i = 0; i < roomEntries.length; i++) {
-                        System.out.println("[DEBUG CLIENT] Entry[" + i + "]: [" + roomEntries[i] + "]");
-                    }
-
-                    for (String roomEntry : roomEntries) {
-                        if (roomEntry.trim().isEmpty()) {
-                            System.out.println("[DEBUG CLIENT] Skipping empty entry");
-                            continue;
-                        }
-
-                        String[] roomData = roomEntry.split("\\|");
-                        System.out.println("[DEBUG CLIENT] Room data parts: " + roomData.length);
-
-                        if (roomData.length >= 5) {
-                            String roomId = roomData[0];
-                            String roomName = roomData[1];
-                            int currentPlayers = Integer.parseInt(roomData[2]);
-                            int maxPlayers = Integer.parseInt(roomData[3]);
-                            boolean inGame = Boolean.parseBoolean(roomData[4]);
-                            System.out.println("[DEBUG CLIENT] Adding room - ID: " + roomId + ", Name: " + roomName + " (" + currentPlayers + "/" + maxPlayers + "), InGame: " + inGame);
-                            rooms.add(new RoomListPanel.RoomInfo(roomId, roomName, currentPlayers, maxPlayers, inGame));
-                        } else {
-                            System.out.println("[DEBUG CLIENT] Invalid room data - expected 5 parts, got " + roomData.length);
-                        }
-                    }
-                } else {
-                    System.out.println("[DEBUG CLIENT] No room data (data length is 0)");
+            if (data.length() > 0) {
+                String[] roomEntries = data.split(";");
+                System.out.println("[DEBUG CLIENT] Split result - array length: " + roomEntries.length);
+                for (int i = 0; i < roomEntries.length; i++) {
+                    System.out.println("[DEBUG CLIENT] Entry[" + i + "]: [" + roomEntries[i] + "]");
                 }
-                System.out.println("[DEBUG CLIENT] Total rooms to display: " + rooms.size());
-                System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING END =====");
-                roomListPanel.updateRoomList(rooms);
+
+                for (String roomEntry : roomEntries) {
+                    if (roomEntry.trim().isEmpty()) {
+                        System.out.println("[DEBUG CLIENT] Skipping empty entry");
+                        continue;
+                    }
+
+                    String[] roomData = roomEntry.split("\\|");
+                    System.out.println("[DEBUG CLIENT] Room data parts: " + roomData.length);
+
+                    if (roomData.length >= 5) {
+                        String roomId = roomData[0];
+                        String roomName = roomData[1];
+                        int currentPlayers = Integer.parseInt(roomData[2]);
+                        int maxPlayers = Integer.parseInt(roomData[3]);
+                        boolean inGame = Boolean.parseBoolean(roomData[4]);
+                        System.out.println("[DEBUG CLIENT] Adding room - ID: " + roomId + ", Name: " + roomName + " (" + currentPlayers + "/" + maxPlayers + "), InGame: " + inGame);
+                        rooms.add(new RoomListPanel.RoomInfo(roomId, roomName, currentPlayers, maxPlayers, inGame));
+                    } else {
+                        System.out.println("[DEBUG CLIENT] Invalid room data - expected 5 parts, got " + roomData.length);
+                    }
+                }
+            } else {
+                System.out.println("[DEBUG CLIENT] No room data (data length is 0)");
+            }
+            System.out.println("[DEBUG CLIENT] Total rooms to display: " + rooms.size());
+            System.out.println("[DEBUG CLIENT] ===== ROOM_LIST PARSING END =====");
+            roomListPanel.updateRoomList(rooms);
 
         } else if (msg.startsWith("ROOM_JOINED ")) {
-                // ROOM_JOINED roomId|roomName
-                String data = msg.substring("ROOM_JOINED ".length());
-                String[] roomData = data.split("\\|", 2); // 2개로만 분리 (roomId와 나머지)
-                if (roomData.length >= 2) {
-                    currentRoomId = roomData[0];
-                    String roomName = roomData[1];
-                    lobbyPanel.setRoomTitle(roomName);
-                } else {
-                    currentRoomId = roomData[0];
-                }
-                // 방 목록 자동 새로고침 정지
-                roomListPanel.stopAutoRefresh();
-                cardLayout.show(mainPanel, "LOBBY");
+            // ROOM_JOINED roomId|roomName
+            String data = msg.substring("ROOM_JOINED ".length());
+            String[] roomData = data.split("\\|", 2); // 2개로만 분리 (roomId와 나머지)
+            if (roomData.length >= 2) {
+                currentRoomId = roomData[0];
+                String roomName = roomData[1];
+                lobbyPanel.setRoomTitle(roomName);
+            } else {
+                currentRoomId = roomData[0];
+            }
+            // 방 목록 자동 새로고침 정지
+            roomListPanel.stopAutoRefresh();
+            cardLayout.show(mainPanel, "LOBBY");
 
         } else if (msg.equals("LEFT_ROOM")) {
-                // 방 나가기 성공
-                currentRoomId = null;
-                cardLayout.show(mainPanel, "ROOM_LIST");
-                // 방 목록 자동 새로고침 시작
-                roomListPanel.startAutoRefresh();
+            // 방 나가기 성공
+            currentRoomId = null;
+            cardLayout.show(mainPanel, "ROOM_LIST");
+            // 방 목록 자동 새로고침 시작
+            roomListPanel.startAutoRefresh();
 
         } else if (msg.startsWith("JOIN_ROOM_FAILED")) {
-                // JOIN_ROOM_FAILED 메시지
-                String reason = msg.length() > 17 ? msg.substring(17) : "방에 입장할 수 없습니다.";
-                JOptionPane.showMessageDialog(this,
-                        reason,
-                        "입장 실패",
-                        JOptionPane.WARNING_MESSAGE);
+            // JOIN_ROOM_FAILED 메시지
+            String reason = msg.length() > 17 ? msg.substring(17) : "방에 입장할 수 없습니다.";
+            JOptionPane.showMessageDialog(this,
+                    reason,
+                    "입장 실패",
+                    JOptionPane.WARNING_MESSAGE);
 
         } else if (msg.startsWith("SYS ")) {
-                // SYS 시스템메시지
-                String text = msg.substring(4);
-                lobbyPanel.addChatMessage("[시스템] " + text);
+            // SYS 시스템메시지
+            String text = msg.substring(4);
+            lobbyPanel.addChatMessage("[시스템] " + text);
 
         } else if (msg.startsWith("CHAT ")) {
-                // CHAT 닉네임 내용
-                String[] parts = msg.split(" ", 3);
-                if (parts.length >= 3) {
-                    String nick = parts[1];
-                    String text = parts[2];
-                    lobbyPanel.addChatMessage(nick + ": " + text);
-                }
+            // CHAT 닉네임 내용
+            String[] parts = msg.split(" ", 3);
+            if (parts.length >= 3) {
+                String nick = parts[1];
+                String text = parts[2];
+                lobbyPanel.addChatMessage(nick + ": " + text);
+            }
 
+        }
+        if (msg.equals("KICKED")) {
+            JOptionPane.showMessageDialog(this,
+                    "방장에 의해 강퇴되었습니다.",
+                    "강퇴됨",
+                    JOptionPane.ERROR_MESSAGE);
+
+            currentRoomId = null;
+            cardLayout.show(mainPanel, "ROOM_LIST");
+            roomListPanel.startAutoRefresh();
+            return;
         } else if (msg.startsWith("PLAYER_LIST ")) {
-                // PLAYER_LIST player1|ready|isHost|score|combo|maxCombo player2|...
-                lobbyPanel.clearPlayers();
-                gamePanel.clearPlayers();
+            // PLAYER_LIST player1|ready|isHost|score|combo|maxCombo player2|...
+            lobbyPanel.clearPlayers();
+            gamePanel.clearPlayers();
 
-                // 서버에서 받은 플레이어 목록을 파싱
-                String[] parts = msg.split(" ");
-                java.util.List<PlayerInfo> playerList = new java.util.ArrayList<>();
-                for (int i = 1; i < parts.length; i++) {
-                    String[] playerData = parts[i].split("\\|");
-                    if (playerData.length >= 6) {
-                        String name = playerData[0];
-                        boolean ready = Boolean.parseBoolean(playerData[1]);
-                        boolean isHost = Boolean.parseBoolean(playerData[2]);
-                        int score = Integer.parseInt(playerData[3]);
-                        int combo = Integer.parseInt(playerData[4]);
+            // 서버에서 받은 플레이어 목록을 파싱
+            String[] parts = msg.split(" ");
+            java.util.List<PlayerInfo> playerList = new java.util.ArrayList<>();
+            for (int i = 1; i < parts.length; i++) {
+                String[] playerData = parts[i].split("\\|");
+                if (playerData.length >= 6) {
+                    String name = playerData[0];
+                    boolean ready = Boolean.parseBoolean(playerData[1]);
+                    boolean isHost = Boolean.parseBoolean(playerData[2]);
+                    int score = Integer.parseInt(playerData[3]);
+                    int combo = Integer.parseInt(playerData[4]);
 
-                        playerList.add(new PlayerInfo(name, ready, isHost, score, combo));
+                    playerList.add(new PlayerInfo(name, ready, isHost, score, combo));
+                }
+            }
+
+            // 자기 자신을 0번에 배치
+            boolean imHost = false;
+            for (PlayerInfo info : playerList) {
+                if (info.name.equals(myNickname)) {
+                    lobbyPanel.setPlayerInfo(0, info.name, info.ready, info.isHost);
+                    gamePanel.setPlayerInfo(0, info.name, info.score, info.combo);
+                    imHost = info.isHost;
+                    break;
+                }
+            }
+
+            // 나머지 플레이어들을 1, 2, 3번에 배치
+            int slot = 1;
+            java.util.List<String> otherPlayers = new java.util.ArrayList<>();
+            java.util.Set<String> currentPlayers = new java.util.HashSet<>();
+            for (PlayerInfo info : playerList) {
+                if (!info.name.equals(myNickname)) {
+                    currentPlayers.add(info.name);
+                    if (slot < 4) {
+                        lobbyPanel.setPlayerInfo(slot, info.name, info.ready, info.isHost);
+                        gamePanel.setPlayerInfo(slot, info.name, info.score, info.combo);
+                        otherPlayers.add(info.name);
+                        slot++;
                     }
                 }
+            }
 
-                // 자기 자신을 0번에 배치
-                boolean imHost = false;
-                for (PlayerInfo info : playerList) {
-                    if (info.name.equals(myNickname)) {
-                        lobbyPanel.setPlayerInfo(0, info.name, info.ready, info.isHost);
-                        gamePanel.setPlayerInfo(0, info.name, info.score, info.combo);
-                        imHost = info.isHost;
-                        break;
-                    }
-                }
-
-                // 나머지 플레이어들을 1, 2, 3번에 배치
-                int slot = 1;
-                java.util.List<String> otherPlayers = new java.util.ArrayList<>();
-                java.util.Set<String> currentPlayers = new java.util.HashSet<>();
-                for (PlayerInfo info : playerList) {
-                    if (!info.name.equals(myNickname)) {
-                        currentPlayers.add(info.name);
-                        if (slot < 4) {
-                            lobbyPanel.setPlayerInfo(slot, info.name, info.ready, info.isHost);
-                            gamePanel.setPlayerInfo(slot, info.name, info.score, info.combo);
-                            otherPlayers.add(info.name);
-                            slot++;
-                        }
-                    }
-                }
-
-                // 방장 여부와 다른 플레이어 목록 업데이트
-                lobbyPanel.updateHostStatus(imHost, otherPlayers);
+            // 방장 여부와 다른 플레이어 목록 업데이트
+            lobbyPanel.updateHostStatus(imHost, otherPlayers);
 
         } else if (msg.equals("START_GAME")) {
-                // 게임 시작 명령
-                cardLayout.show(mainPanel, "GAME");
-                gamePanel.prepareGame();
+            // 게임 시작 명령
+            cardLayout.show(mainPanel, "GAME");
+            gamePanel.prepareGame();
 
-                // 미니뷰 초기화: 다른 플레이어들의 미니뷰 추가
-                gamePanel.clearMiniViews();
-                // 현재 방에 있는 다른 플레이어들을 파악하여 미니뷰 추가
-                // (PLAYER_LIST 메시지를 통해 이미 파악되어 있어야 함)
+            // 미니뷰 초기화: 다른 플레이어들의 미니뷰 추가
+            gamePanel.clearMiniViews();
+            // 현재 방에 있는 다른 플레이어들을 파악하여 미니뷰 추가
+            // (PLAYER_LIST 메시지를 통해 이미 파악되어 있어야 함)
 
-                lobbyPanel.addChatMessage("[시스템] 게임이 시작됩니다!");
+            lobbyPanel.addChatMessage("[시스템] 게임이 시작됩니다!");
 
         } else if (msg.startsWith("GAME_STATE ")) {
-                // GAME_STATE nickname stage currentIndex totalCount score combo sequence...
-                // 예: GAME_STATE player1 5 3 10 1500 5 UP DOWN LEFT RIGHT UP DOWN LEFT RIGHT UP DOWN
-                String[] parts = msg.split(" ");
-                if (parts.length >= 7) {
-                    String playerName = parts[1];
+            // GAME_STATE nickname stage currentIndex totalCount score combo sequence...
+            // 예: GAME_STATE player1 5 3 10 1500 5 UP DOWN LEFT RIGHT UP DOWN LEFT RIGHT UP DOWN
+            String[] parts = msg.split(" ");
+            if (parts.length >= 7) {
+                String playerName = parts[1];
 
-                    // 자기 자신의 상태는 무시
-                    if (playerName.equals(myNickname)) {
-                        return;
-                    }
+                // 자기 자신의 상태는 무시
+                if (playerName.equals(myNickname)) {
+                    return;
+                }
 
-                    // 미니뷰가 없으면 추가
-                    gamePanel.addMiniView(playerName);
+                // 미니뷰가 없으면 추가
+                gamePanel.addMiniView(playerName);
 
-                    int stage = Integer.parseInt(parts[2]);
-                    int currentIndex = Integer.parseInt(parts[3]);
-                    int totalCount = Integer.parseInt(parts[4]);
-                    int score = Integer.parseInt(parts[5]);
-                    int combo = Integer.parseInt(parts[6]);
+                int stage = Integer.parseInt(parts[2]);
+                int currentIndex = Integer.parseInt(parts[3]);
+                int totalCount = Integer.parseInt(parts[4]);
+                int score = Integer.parseInt(parts[5]);
+                int combo = Integer.parseInt(parts[6]);
 
-                    // 시퀀스 파싱
-                    java.util.List<Direction> sequence = new java.util.ArrayList<>();
-                    java.util.List<Color> arrowColors = new java.util.ArrayList<>();
-                    java.util.Random rnd = new java.util.Random();
+                // 시퀀스 파싱
+                java.util.List<Direction> sequence = new java.util.ArrayList<>();
+                java.util.List<Color> arrowColors = new java.util.ArrayList<>();
+                java.util.Random rnd = new java.util.Random();
 
-                    for (int i = 7; i < parts.length && i < 7 + totalCount; i++) {
-                        try {
-                            Direction d = Direction.valueOf(parts[i]);
-                            sequence.add(d);
+                for (int i = 7; i < parts.length && i < 7 + totalCount; i++) {
+                    try {
+                        Direction d = Direction.valueOf(parts[i]);
+                        sequence.add(d);
 
-                            // 색상은 간단하게 방향별 기본 색상 사용
-                            if (stage >= 5) {
-                                Color[] palette = {
+                        // 색상은 간단하게 방향별 기본 색상 사용
+                        if (stage >= 5) {
+                            Color[] palette = {
                                     new Color(255, 120, 120),
                                     new Color(120, 200, 120),
                                     new Color(120, 180, 255),
                                     new Color(255, 190, 120),
                                     new Color(200, 120, 255)
-                                };
-                                arrowColors.add(palette[rnd.nextInt(palette.length)]);
-                            } else {
-                                switch (d) {
-                                    case UP:    arrowColors.add(new Color(255, 120, 120)); break;
-                                    case DOWN:  arrowColors.add(new Color(120, 180, 255)); break;
-                                    case LEFT:  arrowColors.add(new Color(120, 180, 255)); break;
-                                    case RIGHT: arrowColors.add(new Color(120, 200, 120)); break;
-                                }
+                            };
+                            arrowColors.add(palette[rnd.nextInt(palette.length)]);
+                        } else {
+                            switch (d) {
+                                case UP:
+                                    arrowColors.add(new Color(255, 120, 120));
+                                    break;
+                                case DOWN:
+                                    arrowColors.add(new Color(120, 180, 255));
+                                    break;
+                                case LEFT:
+                                    arrowColors.add(new Color(120, 180, 255));
+                                    break;
+                                case RIGHT:
+                                    arrowColors.add(new Color(120, 200, 120));
+                                    break;
                             }
-                        } catch (IllegalArgumentException e) {
-                            // 잘못된 방향은 무시
                         }
+                    } catch (IllegalArgumentException e) {
+                        // 잘못된 방향은 무시
                     }
-
-                    // 미니뷰 업데이트
-                    gamePanel.updateOpponentGameState(playerName, score, combo, sequence, arrowColors, currentIndex);
                 }
+
+                // 미니뷰 업데이트
+                gamePanel.updateOpponentGameState(playerName, score, combo, sequence, arrowColors, currentIndex);
+            }
 
         } else if (msg.startsWith("GAME_SEQUENCE ")) {
-                // GAME_SEQUENCE stage UP DOWN LEFT RIGHT ...
-                String[] parts = msg.split(" ");
-                if (parts.length >= 2) {
-                    int stage = Integer.parseInt(parts[1]);
-                    String[] directions = new String[parts.length - 2];
-                    System.arraycopy(parts, 2, directions, 0, directions.length);
-                    gamePanel.setSequenceFromServer(directions, stage);
-                }
+            // GAME_SEQUENCE stage UP DOWN LEFT RIGHT ...
+            String[] parts = msg.split(" ");
+            if (parts.length >= 2) {
+                int stage = Integer.parseInt(parts[1]);
+                String[] directions = new String[parts.length - 2];
+                System.arraycopy(parts, 2, directions, 0, directions.length);
+                gamePanel.setSequenceFromServer(directions, stage);
+            }
 
         } else if (msg.startsWith("GAME_RANKING ")) {
-                // 게임 랭킹 정보
-                // GAME_RANKING name1|score1|success1|combo1 name2|score2|success2|combo2 ...
-                System.out.println("[DEBUG CLIENT] ===== GAME_RANKING RECEIVED =====");
-                System.out.println("[DEBUG CLIENT] Full message: " + msg);
+            // 게임 랭킹 정보
+            // GAME_RANKING name1|score1|success1|combo1 name2|score2|success2|combo2 ...
+            System.out.println("[DEBUG CLIENT] ===== GAME_RANKING RECEIVED =====");
+            System.out.println("[DEBUG CLIENT] Full message: " + msg);
 
-                String[] parts = msg.split(" ");
-                System.out.println("[DEBUG CLIENT] Split parts: " + parts.length);
+            String[] parts = msg.split(" ");
+            System.out.println("[DEBUG CLIENT] Split parts: " + parts.length);
 
-                java.util.List<ResultPanel.PlayerRankInfo> rankings = new java.util.ArrayList<>();
+            java.util.List<ResultPanel.PlayerRankInfo> rankings = new java.util.ArrayList<>();
 
-                for (int i = 1; i < parts.length; i++) {
-                    System.out.println("[DEBUG CLIENT] Processing part[" + i + "]: " + parts[i]);
-                    String[] playerData = parts[i].split("\\|");
-                    System.out.println("[DEBUG CLIENT]   Split into " + playerData.length + " parts");
+            for (int i = 1; i < parts.length; i++) {
+                System.out.println("[DEBUG CLIENT] Processing part[" + i + "]: " + parts[i]);
+                String[] playerData = parts[i].split("\\|");
+                System.out.println("[DEBUG CLIENT]   Split into " + playerData.length + " parts");
 
-                    if (playerData.length >= 4) {
-                        String name = playerData[0];
-                        int score = Integer.parseInt(playerData[1]);
-                        int successCount = Integer.parseInt(playerData[2]);
-                        int maxCombo = Integer.parseInt(playerData[3]);
-                        System.out.println("[DEBUG CLIENT]   Player: " + name + ", Score: " + score
-                                + ", Success: " + successCount + ", Combo: " + maxCombo);
-                        rankings.add(new ResultPanel.PlayerRankInfo(name, score, successCount, maxCombo));
-                    }
+                if (playerData.length >= 4) {
+                    String name = playerData[0];
+                    int score = Integer.parseInt(playerData[1]);
+                    int successCount = Integer.parseInt(playerData[2]);
+                    int maxCombo = Integer.parseInt(playerData[3]);
+                    System.out.println("[DEBUG CLIENT]   Player: " + name + ", Score: " + score
+                            + ", Success: " + successCount + ", Combo: " + maxCombo);
+                    rankings.add(new ResultPanel.PlayerRankInfo(name, score, successCount, maxCombo));
                 }
+            }
 
-                System.out.println("[DEBUG CLIENT] Total rankings: " + rankings.size());
-                System.out.println("[DEBUG CLIENT] ================================");
+            System.out.println("[DEBUG CLIENT] Total rankings: " + rankings.size());
+            System.out.println("[DEBUG CLIENT] ================================");
 
-                resultPanel.setRankingResult(rankings);
+            resultPanel.setRankingResult(rankings);
 
         } else if (msg.equals("GAME_END")) {
-                // 게임 종료 - 결과 화면으로 이동
-                cardLayout.show(mainPanel, "RESULT");
+            // 게임 종료 - 결과 화면으로 이동
+            cardLayout.show(mainPanel, "RESULT");
 
         } else {
-                // 알 수 없는 메시지는 그냥 채팅창에 표시
+            // 🔥 ROOM_LIST 같은 시스템 메시지가 채팅으로 들어오지 않도록 필터링
+            if (!msg.startsWith("ROOM_LIST")) {
                 lobbyPanel.addChatMessage(msg);
+            }
         }
     }
-
     public static void main(String[] args) {
         SwingUtilities.invokeLater(ArrowGameClientApp::new);
     }

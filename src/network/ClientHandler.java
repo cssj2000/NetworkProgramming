@@ -137,6 +137,15 @@ class ClientHandler extends Thread {
                         server.transferHost(player.getNickname(), newHostName);
                     }
 
+                } else if (line.startsWith("KICK ")) {
+                    // KICK 대상닉네임
+                    if (player != null && currentRoomId != null) {
+                        String target = line.substring(5).trim();
+                        server.kickPlayer(player.getNickname(), target);
+                    }
+
+
+
                 } else if (line.equals("START_GAME_REQUEST")) {
                     // 방장이 게임 시작 요청
                     if (player != null && player.isHost()) {
@@ -166,4 +175,10 @@ class ClientHandler extends Thread {
             server.removeClient(this);
         }
     }
+    public void closeSocket() {
+        try {
+            socket.close();
+        } catch (IOException ignored) {}
+    }
+
 }

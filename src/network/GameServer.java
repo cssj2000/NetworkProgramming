@@ -129,10 +129,12 @@ public class GameServer {
 
     // 방 목록 가져오기
     public synchronized String getRoomListString() {
-        StringBuilder sb = new StringBuilder("ROOM_LIST");
+        StringBuilder sb = new StringBuilder("ROOM_LIST ");
+
         for (GameRoom room : rooms.values()) {
-            sb.append(";").append(room.toProtocolString());
+            sb.append(room.toProtocolString()).append(";");
         }
+
         return sb.toString();
     }
 
@@ -494,6 +496,60 @@ public class GameServer {
         broadcastToRoom(roomId, "GAME_END");
         broadcastPlayerListToRoom(roomId);
         System.out.println("Game ended in room: " + roomId);
+    }
+
+    // ======================= 강퇴 기능 ========================
+    public synchronized void kickPlayer(String hostName, String targetName) {
+        String roomId = playerRooms.get(hostName);
+        if (roomId == null) return;
+
+        GameRoom room = rooms.get(roomId);
+        if (room == null) return;
+
+        Player host = room.getHost();
+        if (host == null || !host.getNickname().equals(hostName)) {
+            System.out.println("[KICK] 방장이 아닌 사용자의 강퇴 요청 거부: " + hostName);
+            return; // 방장만 가능
+        }
+
+        // 강퇴 대상 찾기
+        Player target = null;
+        for (Player p : room.getPlayers()) {
+            if (p.getNickname().equals(targetName)) {
+                target = p;
+                break;
+            }
+        }
+        if (target == null) {
+            System.out.println("[KICK] 대상 플레이어 없음: " + targetName);
+            return;
+        }
+
+        // 강퇴 대상에게 강퇴 알림
+        try {
+            target.getHandler().sendMessage("KICKED");
+        } catch (IOException ignored) {}
+
+        // 소켓 종료
+        target.getHandler().closeSocket();
+
+        // 서버 내부적으로 방에서 제거
+        room.removePlayer(target);
+        playerRooms.remove(targetName);
+
+        // 방 사람들에게 알림
+        broadcastToRoom(roomId, "SYS " + targetName + " 님이 강퇴되었습니다.");
+
+        // 방장이 혼자 남았거나 아무도 없으면 방 유지/삭제 처리
+        if (room.getPlayers().isEmpty()) {
+            rooms.remove(roomId);
+        } else {
+            // 새 방장 처리 (GameRoom이 자동으로 처리하는 구조라면 괜찮음)
+            broadcastPlayerListToRoom(roomId);
+        }
+
+        // 로비의 방 목록 갱신
+        broadcastRoomListToLobby();
     }
 
     // 클라이언트 핸들러 제거

@@ -16,6 +16,9 @@ public class LobbyPanel extends JPanel {
     JTextField chatInput = new JTextField();
     JButton sendButton = new JButton("전송");
     JLabel titleLabel; // 방 제목 라벨
+    JButton kickButton = new JButton("강퇴"); // ⬅⬅ 새로 추가
+    JList<String> playerListUI = new JList<>(); // ⬅⬅ 강퇴 대상 선택 리스트
+
 
     private boolean isHost = false;
     private java.util.List<String> otherPlayerNames = new java.util.ArrayList<>();
@@ -83,6 +86,11 @@ public class LobbyPanel extends JPanel {
             nameFields[i] = new JTextField("플레이어" + (i + 1));
             nameFields[i].setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
+            // 🔥 로비에서는 절대 닉네임 변경 불가 + 커서 깜빡임 제거
+            nameFields[i].setEditable(false);            // 타이핑 불가
+            nameFields[i].setFocusable(false);           // 클릭해도 커서 안 뜸
+            nameFields[i].setCursor(Cursor.getDefaultCursor());  // I-bar 커서 제거
+
             readyButtons[i] = new JToggleButton("준비 완료!");
             readyButtons[i].setBackground(new Color(120, 200, 255));
             readyButtons[i].setForeground(Color.WHITE);
@@ -118,6 +126,14 @@ public class LobbyPanel extends JPanel {
             p.add(readyButtons[i]);
             playersPanel.add(p);
         }
+        // ===== 방장용 플레이어 선택 리스트 UI =====
+        playerListUI.setPreferredSize(new Dimension(200, 100));
+        playerListUI.setForeground(Color.BLACK);
+        playerListUI.setBackground(Color.WHITE);
+        playerListUI.setBorder(BorderFactory.createTitledBorder("플레이어 목록 (강퇴 선택)"));
+        add(playerListUI, BorderLayout.WEST);
+        playerListUI.setVisible(false);
+
 
         // -------- 오른쪽: 채팅 --------
         JPanel chatPanel = new JPanel(new BorderLayout());
@@ -177,6 +193,19 @@ public class LobbyPanel extends JPanel {
         transferHostButton.setFont(new Font("Dialog", Font.BOLD, 16));
         transferHostButton.setVisible(false); // 기본적으로 숨김 (방장만 보임)
         transferHostButton.addActionListener(e -> showTransferHostDialog());
+// ===== 강퇴 버튼 생성 =====
+        kickButton.setPreferredSize(new Dimension(100, 50));
+        kickButton.setBackground(new Color(255, 100, 100));
+        kickButton.setForeground(Color.WHITE);
+        kickButton.setFont(new Font("Dialog", Font.BOLD, 16));
+        kickButton.setVisible(false); // 기본적으로 숨김 (방장만 보임)
+
+        kickButton.addActionListener(e -> {
+            String target = playerListUI.getSelectedValue();
+            if (target != null && networkSender != null) {
+                networkSender.send("KICK " + target);
+            }
+        });
 
         startButton.setEnabled(false);
         startButton.setPreferredSize(new Dimension(300, 60));
@@ -191,6 +220,7 @@ public class LobbyPanel extends JPanel {
 
         buttonPanel.add(leaveRoomButton);
         buttonPanel.add(transferHostButton);
+        buttonPanel.add(kickButton); // ⬅ 강퇴 버튼 추가됨
         bottom.add(buttonPanel);
         bottom.add(Box.createVerticalStrut(10));
         bottom.add(startButton);
@@ -331,6 +361,11 @@ public class LobbyPanel extends JPanel {
 
         // 방장 위임 버튼 표시 여부
         transferHostButton.setVisible(imHost && !otherPlayers.isEmpty());
+
+        kickButton.setVisible(imHost); // ⬅ 방장만 강퇴 버튼 보임
+        playerListUI.setVisible(imHost);
+// playerListUI에 플레이어 목록 갱신
+        playerListUI.setListData(otherPlayers.toArray(new String[0]));
 
         // 게임 시작 버튼 활성화 여부 (방장만 + 모두 준비)
         updateStartButton();
