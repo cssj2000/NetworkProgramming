@@ -101,7 +101,8 @@ class ClientHandler extends Thread {
                     // CHAT 내용
                     String text = line.substring(5);
                     if (player != null && currentRoomId != null) {
-                        server.broadcastToRoom(currentRoomId, "CHAT " + player.getNickname() + " " + text);
+                        // 방장 여부를 포함하여 전송: CHAT 닉네임 방장여부 내용
+                        server.broadcastToRoom(currentRoomId, "CHAT " + player.getNickname() + " " + player.isHost() + " " + text);
                     }
 
                 } else if (line.equals("READY")) {

@@ -325,6 +325,7 @@ public class LobbyPanel extends JPanel {
             readyButtons[i].setText("준비 완료!");
             readyButtons[i].setBackground(new Color(120, 200, 255));
             readyButtons[i].setEnabled(i == 0); // 첫 번째만 활성화
+            hostLabels[i].setVisible(false); // 방장 표시 숨기기
         }
         updateStartButton();
     }

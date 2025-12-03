@@ -19,6 +19,7 @@ public class ArrowGameClientApp extends JFrame {
     private GameClient gameClient; // 실제 소켓 클라이언트
     private String myNickname; // 내 닉네임
     private String currentRoomId; // 현재 방 ID
+    private java.util.List<PlayerInfo> playerList; // 현재 방의 플레이어 목록
 
     public ArrowGameClientApp() {
         setTitle("리듬 화살표 게임 (클라이언트)");
@@ -314,13 +315,15 @@ public class ArrowGameClientApp extends JFrame {
             lobbyPanel.addChatMessage("[시스템] " + text);
 
         } else if (msg.startsWith("CHAT ")) {
-            // CHAT 닉네임 내용
-            String[] parts = msg.split(" ", 3);
-            if (parts.length >= 3) {
+            // CHAT 닉네임 방장여부 내용
+            String[] parts = msg.split(" ", 4);
+            if (parts.length >= 4) {
                 String nick = parts[1];
-                String text = parts[2];
-                // 모든 메시지를 닉네임으로 표시 (본인 포함)
-                lobbyPanel.addChatMessage(nick + ": " + text);
+                boolean isHost = Boolean.parseBoolean(parts[2]);
+                String text = parts[3];
+                // 방장이면 (방장) 표시 추가
+                String displayName = isHost ? "(방장) " + nick : nick;
+                lobbyPanel.addChatMessage(displayName + ": " + text);
             }
 
         }
@@ -341,7 +344,7 @@ public class ArrowGameClientApp extends JFrame {
 
             // 서버에서 받은 플레이어 목록을 파싱
             String[] parts = msg.split(" ");
-            java.util.List<PlayerInfo> playerList = new java.util.ArrayList<>();
+            playerList = new java.util.ArrayList<>();
             for (int i = 1; i < parts.length; i++) {
                 String[] playerData = parts[i].split("\\|");
                 if (playerData.length >= 6) {
@@ -382,6 +385,12 @@ public class ArrowGameClientApp extends JFrame {
                 }
             }
 
+            // 사용하지 않은 슬롯은 기본값으로 초기화 (빈 슬롯 제거)
+            for (int i = slot; i < 4; i++) {
+                lobbyPanel.setPlayerInfo(i, "플레이어" + (i + 1), false, false);
+                gamePanel.setPlayerInfo(i, "플레이어" + (i + 1), 0, 0);
+            }
+
             // 방장 여부와 다른 플레이어 목록 업데이트
             lobbyPanel.updateHostStatus(imHost, otherPlayers);
 
@@ -394,6 +403,12 @@ public class ArrowGameClientApp extends JFrame {
             gamePanel.clearMiniViews();
             // 현재 방에 있는 다른 플레이어들을 파악하여 미니뷰 추가
             // (PLAYER_LIST 메시지를 통해 이미 파악되어 있어야 함)
+
+            // 실제 플레이어 수에 맞게 상단 패널 업데이트
+            // playerList 변수에 현재 방의 모든 플레이어 정보가 저장되어 있음
+            if (playerList != null) {
+                gamePanel.updatePlayerPanelVisibility(playerList.size());
+            }
 
             lobbyPanel.addChatMessage("[시스템] 게임이 시작됩니다!");
 

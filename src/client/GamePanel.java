@@ -69,14 +69,22 @@ public class GamePanel extends JPanel implements KeyListener {
     private InputSender inputSender;
     private GameStateSender gameStateSender;
 
+    private JPanel topPanel;  // 동적으로 업데이트할 상단 패널
+    private JPanel[] playerPanels = new JPanel[4];  // 각 플레이어 패널 참조
+    private JPanel timePanel;  // 타이머 패널
+    private JPanel mainCard;  // 메인 게임 카드 (테두리 효과용)
+    private Timer rankEffectTimer;  // 순위 효과 애니메이션 타이머
+    private int effectFrame = 0;  // 애니메이션 프레임
+
     public GamePanel() {
         setLayout(new BorderLayout());
         setBackground(new Color(224, 245, 255));
 
         // -------- 상단: 플레이어 정보 + 남은 시간 --------
-        JPanel top = new JPanel(new GridLayout(1, 5, 10, 0));
-        top.setOpaque(false);
-        top.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
+        topPanel = new JPanel();
+        topPanel.setLayout(new GridLayout(1, 5, 10, 0));  // 초기값: 최대 5칸
+        topPanel.setOpaque(false);
+        topPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
 
         for (int i = 0; i < 4; i++) {
             JPanel p = new JPanel(new BorderLayout());
@@ -98,10 +106,11 @@ public class GamePanel extends JPanel implements KeyListener {
             inner.add(playerComboLabels[i]);
 
             p.add(inner, BorderLayout.CENTER);
-            top.add(p);
+            playerPanels[i] = p;
+            topPanel.add(p);
         }
 
-        JPanel timePanel = new JPanel(new BorderLayout());
+        timePanel = new JPanel(new BorderLayout());
         timePanel.setBackground(Color.WHITE);
         timePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         JLabel timeTitle = new JLabel("남은 시간", SwingConstants.CENTER);
@@ -110,9 +119,9 @@ public class GamePanel extends JPanel implements KeyListener {
         timeValueLabel.setFont(new Font("Dialog", Font.BOLD, 18));
         timePanel.add(timeTitle, BorderLayout.NORTH);
         timePanel.add(timeValueLabel, BorderLayout.CENTER);
-        top.add(timePanel);
+        topPanel.add(timePanel);
 
-        add(top, BorderLayout.NORTH);
+        add(topPanel, BorderLayout.NORTH);
 
         // -------- 중앙: 메인 게임 영역 + 미니뷰 영역 --------
         JPanel mainContainer = new JPanel(new BorderLayout(10, 0));
@@ -123,11 +132,17 @@ public class GamePanel extends JPanel implements KeyListener {
         center.setOpaque(false);
         center.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 10)); // 오른쪽 여백 줄임
 
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
+        mainCard = new JPanel(new BorderLayout());
+        mainCard.setBackground(Color.WHITE);
+        mainCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(180, 210, 230), 2),
                 BorderFactory.createEmptyBorder(30, 30, 30, 30)));
+
+        // 순위 효과 애니메이션 타이머 (100ms마다 실행)
+        rankEffectTimer = new Timer(100, e -> {
+            effectFrame++;
+            updateRankBorderEffect();
+        });
 
         bigMessageLabel.setFont(new Font("Dialog", Font.BOLD, 60));
         bigMessageLabel.setForeground(new Color(0, 200, 120));
@@ -152,8 +167,8 @@ public class GamePanel extends JPanel implements KeyListener {
         topText.add(Box.createVerticalStrut(5));
         topText.add(bigMessageLabel);
 
-        card.add(topText, BorderLayout.NORTH);
-        card.add(arrowPanel, BorderLayout.CENTER);
+        mainCard.add(topText, BorderLayout.NORTH);
+        mainCard.add(arrowPanel, BorderLayout.CENTER);
 
         // 하단: 상태 메시지 + 난이도
         JPanel bottomText = new JPanel();
@@ -167,8 +182,8 @@ public class GamePanel extends JPanel implements KeyListener {
         bottomText.add(Box.createVerticalStrut(5));
         bottomText.add(difficultyLabel);
 
-        card.add(bottomText, BorderLayout.SOUTH);
-        center.add(card, BorderLayout.CENTER);
+        mainCard.add(bottomText, BorderLayout.SOUTH);
+        center.add(mainCard, BorderLayout.CENTER);
 
         // 미니뷰 컨테이너 (오른쪽)
         miniViewContainer = new JPanel();
@@ -316,12 +331,75 @@ public class GamePanel extends JPanel implements KeyListener {
             rankInfoLabel.setForeground(new Color(100, 150, 255));
         }
 
+        // 본인 화면 테두리 효과 업데이트
+        updateRankBorderEffect();
+
+        // 순위에 따라 애니메이션 타이머 시작/중지
+        if (rank == 1 || (rank == total && total > 1)) {
+            rankEffectTimer.start();
+        } else {
+            rankEffectTimer.stop();
+            // 중간 순위는 기본 테두리로 복원
+            mainCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(180, 210, 230), 2),
+                BorderFactory.createEmptyBorder(30, 30, 30, 30)));
+        }
+
         // 미니뷰에 1등 표시
         for (java.util.Map.Entry<String, MiniGameView> entry : miniViews.entrySet()) {
             String playerName = entry.getKey();
             MiniGameView miniView = entry.getValue();
             miniView.setFirstPlace(playerName.equals(firstPlayer));
         }
+    }
+
+    /** 순위에 따른 테두리 효과 업데이트 */
+    private void updateRankBorderEffect() {
+        if (myRank == 1) {
+            // 🔥 1등: 화려한 불타는 효과 (주황-빨강-노랑 그라데이션 + 이중 테두리)
+            float pulse1 = (float) Math.abs(Math.sin(effectFrame * 0.25));  // 빠른 맥동
+            float pulse2 = (float) Math.abs(Math.sin(effectFrame * 0.15));  // 느린 맥동
+
+            // 외부 테두리: 빨강 -> 주황 변화
+            int outerR = 255;
+            int outerG = 50 + (int) (150 * pulse1);  // 50~200
+            int outerB = 0;
+            Color outerFireColor = new Color(outerR, outerG, outerB);
+
+            // 내부 테두리: 주황 -> 노랑 변화
+            int innerR = 255;
+            int innerG = 140 + (int) (100 * pulse2);  // 140~240
+            int innerB = 0;
+            Color innerFireColor = new Color(innerR, innerG, innerB);
+
+            // 배경색도 맥동
+            int bgR = 255;
+            int bgG = 245 + (int) (10 * pulse1);
+            int bgB = 230 + (int) (10 * pulse2);
+            mainCard.setBackground(new Color(bgR, bgG, bgB));
+
+            // 이중 테두리로 불타는 느낌 강화 (두께도 변화)
+            int outerThickness = 5 + (int) (2 * pulse1);  // 5~7px
+            int innerThickness = 2 + (int) (1 * pulse2);  // 2~3px
+
+            mainCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(outerFireColor, outerThickness),
+                    BorderFactory.createLineBorder(innerFireColor, innerThickness)),
+                BorderFactory.createEmptyBorder(28, 28, 28, 28)));
+
+        } else if (myRank == totalPlayers && totalPlayers > 1) {
+            // ⚠️ 꼴등: 강렬한 빨간색 경고 효과
+            float pulse = (float) Math.abs(Math.sin(effectFrame * 0.25));  // 더 빠른 깜빡임
+            int alpha = 180 + (int) (75 * pulse);  // 180~255
+            Color warningColor = new Color(255, alpha / 2, alpha / 2);
+
+            mainCard.setBackground(new Color(255, 245, 245));
+            mainCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(warningColor, 4),
+                BorderFactory.createEmptyBorder(30, 30, 30, 30)));
+        }
+        mainCard.repaint();
     }
 
     // ---- 플레이어 정보 동기화 메서드 ----
@@ -331,6 +409,8 @@ public class GamePanel extends JPanel implements KeyListener {
             playerScoreLabels[i].setText("성공: 0");
             playerComboLabels[i].setText("콤보: 0");
         }
+        // 모든 플레이어 패널 숨기기
+        updatePlayerPanelVisibility(0);
     }
 
     public void setPlayerInfo(int index, String name, int score, int combo) {
@@ -339,6 +419,32 @@ public class GamePanel extends JPanel implements KeyListener {
             playerScoreLabels[index].setText("성공: " + score);
             playerComboLabels[index].setText("콤보: " + combo);
         }
+    }
+
+    /**
+     * 실제 플레이어 수에 맞게 상단 패널 업데이트
+     * @param playerCount 실제 플레이어 수 (0번 인덱스 포함하여 총 개수)
+     */
+    public void updatePlayerPanelVisibility(int playerCount) {
+        // 기존 패널 모두 제거
+        topPanel.removeAll();
+
+        // 실제 플레이어 수만큼만 추가 (최소 1개, 최대 4개)
+        int visiblePlayers = Math.max(1, Math.min(4, playerCount));
+
+        for (int i = 0; i < visiblePlayers; i++) {
+            topPanel.add(playerPanels[i]);
+        }
+
+        // 타이머는 항상 마지막에 추가
+        topPanel.add(timePanel);
+
+        // GridLayout 열 개수 업데이트 (플레이어 수 + 타이머 1개)
+        topPanel.setLayout(new GridLayout(1, visiblePlayers + 1, 10, 0));
+
+        // UI 갱신
+        topPanel.revalidate();
+        topPanel.repaint();
     }
 
     public int getScore() {
