@@ -63,13 +63,32 @@ class ClientHandler extends Thread {
                     sendMessage(roomList);
 
                 } else if (line.startsWith("CREATE_ROOM ")) {
-                    // CREATE_ROOM 방이름
+                    // CREATE_ROOM 방이름|비밀번호 (비밀번호 없으면 공개방)
                     if (player != null) {
-                        String roomName = line.substring(12).trim();
+                        String data = line.substring(12).trim();
+                        String roomName;
+                        String password = null;
+
+                        // 파이프로 구분 (방이름|비밀번호)
+                        if (data.contains("|")) {
+                            String[] parts = data.split("\\|", 2);
+                            roomName = parts[0].trim();
+                            password = parts.length > 1 ? parts[1].trim() : null;
+                            if (password != null && password.isEmpty()) password = null;
+                        } else {
+                            roomName = data;
+                        }
+
                         if (roomName.isEmpty()) roomName = player.getNickname() + "의 방";
 
-                        String roomId = server.createRoom(roomName, player.getNickname(), 4);
-                        if (server.joinRoom(roomId, player)) {
+                        String roomId;
+                        if (password != null) {
+                            roomId = server.createRoom(roomName, player.getNickname(), 4, password);
+                        } else {
+                            roomId = server.createRoom(roomName, player.getNickname(), 4);
+                        }
+
+                        if (server.joinRoom(roomId, player, password)) {
                             currentRoomId = roomId;
                             String actualRoomName = server.getRoomName(roomId);
                             sendMessage("ROOM_JOINED " + roomId + "|" + actualRoomName);
@@ -77,16 +96,27 @@ class ClientHandler extends Thread {
                     }
 
                 } else if (line.startsWith("JOIN_ROOM ")) {
-                    // JOIN_ROOM roomId
+                    // JOIN_ROOM roomId|비밀번호 (비밀번호 없으면 공개방)
                     if (player != null) {
-                        String roomId = line.substring(10).trim();
-                        if (server.joinRoom(roomId, player)) {
+                        String data = line.substring(10).trim();
+                        String roomId;
+                        String password = null;
+
+                        // 파이프로 구분 (roomId|비밀번호)
+                        if (data.contains("|")) {
+                            String[] parts = data.split("\\|", 2);
+                            roomId = parts[0].trim();
+                            password = parts.length > 1 ? parts[1].trim() : null;
+                        } else {
+                            roomId = data;
+                        }
+
+                        if (server.joinRoom(roomId, player, password)) {
                             currentRoomId = roomId;
                             String roomName = server.getRoomName(roomId);
                             sendMessage("ROOM_JOINED " + roomId + "|" + roomName);
-                        } else {
-                            sendMessage("JOIN_ROOM_FAILED 방에 입장할 수 없습니다.");
                         }
+                        // 실패 메시지는 joinRoom 메서드 내부에서 전송됨
                     }
 
                 } else if (line.equals("LEAVE_ROOM")) {

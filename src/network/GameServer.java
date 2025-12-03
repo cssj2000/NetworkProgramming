@@ -41,7 +41,7 @@ public class GameServer {
         return playerRooms.containsKey(nickname);
     }
 
-    // 방 생성
+    // 방 생성 (공개방)
     public synchronized String createRoom(String roomName, String hostNickname, int maxPlayers) {
         GameRoom room = new GameRoom(roomName, maxPlayers);
         rooms.put(room.getRoomId(), room);
@@ -53,11 +53,46 @@ public class GameServer {
         return room.getRoomId();
     }
 
+    // 방 생성 (비밀번호 방)
+    public synchronized String createRoom(String roomName, String hostNickname, int maxPlayers, String password) {
+        GameRoom room = new GameRoom(roomName, maxPlayers, password);
+        rooms.put(room.getRoomId(), room);
+        System.out.println("Room created (with password): " + room.getRoomId() + " - " + roomName);
+
+        // 방 목록이 변경되었으므로 모든 클라이언트에게 알림
+        broadcastRoomListToLobby();
+
+        return room.getRoomId();
+    }
+
     // 방 입장
     public synchronized boolean joinRoom(String roomId, Player player) {
+        return joinRoom(roomId, player, null);
+    }
+
+    // 방 입장 (비밀번호 포함)
+    public synchronized boolean joinRoom(String roomId, Player player, String password) {
         GameRoom room = rooms.get(roomId);
         if (room == null) {
             System.out.println("Room not found: " + roomId);
+            return false;
+        }
+
+        // 강퇴된 플레이어인지 확인
+        if (room.isKickedPlayer(player.getNickname())) {
+            System.out.println(player.getNickname() + " is kicked from room: " + roomId);
+            try {
+                player.getHandler().sendMessage("JOIN_ROOM_FAILED 강퇴당한 방에 재입장 할 수 없습니다!");
+            } catch (java.io.IOException ignored) {}
+            return false;
+        }
+
+        // 비밀번호 확인
+        if (!room.checkPassword(password)) {
+            System.out.println("Wrong password for room: " + roomId);
+            try {
+                player.getHandler().sendMessage("JOIN_ROOM_FAILED 비밀번호가 틀렸습니다!");
+            } catch (java.io.IOException ignored) {}
             return false;
         }
 
@@ -574,8 +609,9 @@ public class GameServer {
             target.getHandler().sendMessage("KICKED");
         } catch (IOException ignored) {}
 
-        // 소켓 종료
-        target.getHandler().closeSocket();
+        // ⚠️ 소켓은 닫지 않음 - 강퇴는 방에서만 제거, 서버 연결은 유지
+        // 강퇴 목록에 추가
+        room.addKickedPlayer(targetName);
 
         // 서버 내부적으로 방에서 제거
         room.removePlayer(target);

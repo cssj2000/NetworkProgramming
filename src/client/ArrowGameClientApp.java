@@ -44,10 +44,14 @@ public class ArrowGameClientApp extends JFrame {
         // ---- 방 목록 콜백 ----
         roomListPanel.setOnRoomActionListener(new RoomListPanel.OnRoomActionListener() {
             @Override
-            public void onCreateRoom(String roomName) {
+            public void onCreateRoom(String roomName, String password) {
                 if (gameClient != null) {
                     try {
-                        gameClient.send("CREATE_ROOM " + roomName);
+                        String message = "CREATE_ROOM " + roomName;
+                        if (password != null && !password.isEmpty()) {
+                            message += "|" + password;
+                        }
+                        gameClient.send(message);
                     } catch (IOException e) {
                         e.printStackTrace();
                         JOptionPane.showMessageDialog(ArrowGameClientApp.this,
@@ -59,10 +63,14 @@ public class ArrowGameClientApp extends JFrame {
             }
 
             @Override
-            public void onJoinRoom(String roomId) {
+            public void onJoinRoom(String roomId, String password) {
                 if (gameClient != null) {
                     try {
-                        gameClient.send("JOIN_ROOM " + roomId);
+                        String message = "JOIN_ROOM " + roomId;
+                        if (password != null && !password.isEmpty()) {
+                            message += "|" + password;
+                        }
+                        gameClient.send(message);
                     } catch (IOException e) {
                         e.printStackTrace();
                         JOptionPane.showMessageDialog(ArrowGameClientApp.this,
@@ -260,16 +268,17 @@ public class ArrowGameClientApp extends JFrame {
                     String[] roomData = roomEntry.split("\\|");
                     System.out.println("[DEBUG CLIENT] Room data parts: " + roomData.length);
 
-                    if (roomData.length >= 5) {
+                    if (roomData.length >= 6) {
                         String roomId = roomData[0];
                         String roomName = roomData[1];
                         int currentPlayers = Integer.parseInt(roomData[2]);
                         int maxPlayers = Integer.parseInt(roomData[3]);
                         boolean inGame = Boolean.parseBoolean(roomData[4]);
-                        System.out.println("[DEBUG CLIENT] Adding room - ID: " + roomId + ", Name: " + roomName + " (" + currentPlayers + "/" + maxPlayers + "), InGame: " + inGame);
-                        rooms.add(new RoomListPanel.RoomInfo(roomId, roomName, currentPlayers, maxPlayers, inGame));
+                        boolean hasPassword = Boolean.parseBoolean(roomData[5]);
+                        System.out.println("[DEBUG CLIENT] Adding room - ID: " + roomId + ", Name: " + roomName + " (" + currentPlayers + "/" + maxPlayers + "), InGame: " + inGame + ", HasPassword: " + hasPassword);
+                        rooms.add(new RoomListPanel.RoomInfo(roomId, roomName, currentPlayers, maxPlayers, inGame, hasPassword));
                     } else {
-                        System.out.println("[DEBUG CLIENT] Invalid room data - expected 5 parts, got " + roomData.length);
+                        System.out.println("[DEBUG CLIENT] Invalid room data - expected 6 parts, got " + roomData.length);
                     }
                 }
             } else {

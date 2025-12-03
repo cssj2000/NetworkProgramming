@@ -22,8 +22,8 @@ public class RoomListPanel extends JPanel {
     }
 
     public interface OnRoomActionListener {
-        void onCreateRoom(String roomName);
-        void onJoinRoom(String roomId);
+        void onCreateRoom(String roomName, String password);
+        void onJoinRoom(String roomId, String password);
     }
 
     private NetworkSender networkSender;
@@ -133,16 +133,42 @@ public class RoomListPanel extends JPanel {
 
     // 방 만들기 다이얼로그
     private void showCreateRoomDialog() {
-        String roomName = JOptionPane.showInputDialog(
+        JPanel panel = new JPanel(new java.awt.GridLayout(3, 2, 5, 5));
+        JTextField roomNameField = new JTextField(15);
+        JCheckBox hasPasswordCheck = new JCheckBox("비밀번호 설정");
+        JPasswordField passwordField = new JPasswordField(15);
+        passwordField.setEnabled(false);
+
+        hasPasswordCheck.addActionListener(e -> {
+            passwordField.setEnabled(hasPasswordCheck.isSelected());
+        });
+
+        panel.add(new JLabel("방 이름:"));
+        panel.add(roomNameField);
+        panel.add(hasPasswordCheck);
+        panel.add(new JLabel());
+        panel.add(new JLabel("비밀번호:"));
+        panel.add(passwordField);
+
+        int result = JOptionPane.showConfirmDialog(
                 this,
-                "방 이름을 입력하세요:",
+                panel,
                 "방 만들기",
+                JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE
         );
 
-        if (roomName != null && !roomName.trim().isEmpty()) {
-            if (roomActionListener != null) {
-                roomActionListener.onCreateRoom(roomName.trim());
+        if (result == JOptionPane.OK_OPTION) {
+            String roomName = roomNameField.getText().trim();
+            if (!roomName.isEmpty()) {
+                String password = null;
+                if (hasPasswordCheck.isSelected()) {
+                    password = new String(passwordField.getPassword()).trim();
+                    if (password.isEmpty()) password = null;
+                }
+                if (roomActionListener != null) {
+                    roomActionListener.onCreateRoom(roomName, password);
+                }
             }
         }
     }
@@ -160,8 +186,28 @@ public class RoomListPanel extends JPanel {
 
         if (selectedRow < rooms.size()) {
             RoomInfo room = rooms.get(selectedRow);
+            String password = null;
+
+            // 비밀번호 방이면 비밀번호 입력 받기
+            if (room.hasPassword) {
+                JPasswordField passwordField = new JPasswordField(15);
+                int result = JOptionPane.showConfirmDialog(
+                        this,
+                        passwordField,
+                        "🔒 비밀번호를 입력하세요",
+                        JOptionPane.OK_CANCEL_OPTION,
+                        JOptionPane.PLAIN_MESSAGE
+                );
+
+                if (result != JOptionPane.OK_OPTION) {
+                    return; // 취소
+                }
+
+                password = new String(passwordField.getPassword()).trim();
+            }
+
             if (roomActionListener != null) {
-                roomActionListener.onJoinRoom(room.roomId);
+                roomActionListener.onJoinRoom(room.roomId, password);
             }
         }
     }
@@ -207,13 +253,15 @@ public class RoomListPanel extends JPanel {
         public int currentPlayers;
         public int maxPlayers;
         public boolean inGame;
+        public boolean hasPassword;
 
-        public RoomInfo(String roomId, String roomName, int currentPlayers, int maxPlayers, boolean inGame) {
+        public RoomInfo(String roomId, String roomName, int currentPlayers, int maxPlayers, boolean inGame, boolean hasPassword) {
             this.roomId = roomId;
             this.roomName = roomName;
             this.currentPlayers = currentPlayers;
             this.maxPlayers = maxPlayers;
             this.inGame = inGame;
+            this.hasPassword = hasPassword;
         }
     }
 }

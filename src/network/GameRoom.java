@@ -10,6 +10,8 @@ public class GameRoom {
     private int maxPlayers;
     private boolean inGame;
     private int currentStage;
+    private java.util.Set<String> kickedPlayers;  // 강퇴된 플레이어 닉네임 목록
+    private String password;  // 비밀번호 (null이면 공개방)
 
     public GameRoom(String roomName, int maxPlayers) {
         this.roomId = generateRoomId();
@@ -18,6 +20,13 @@ public class GameRoom {
         this.maxPlayers = maxPlayers;
         this.inGame = false;
         this.currentStage = 1;
+        this.kickedPlayers = new java.util.HashSet<>();
+        this.password = null;
+    }
+
+    public GameRoom(String roomName, int maxPlayers, String password) {
+        this(roomName, maxPlayers);
+        this.password = password;
     }
 
     private String generateRoomId() {
@@ -98,9 +107,35 @@ public class GameRoom {
         return null;
     }
 
+    // 강퇴된 플레이어 추가
+    public void addKickedPlayer(String nickname) {
+        kickedPlayers.add(nickname);
+    }
+
+    // 강퇴된 플레이어인지 확인
+    public boolean isKickedPlayer(String nickname) {
+        return kickedPlayers.contains(nickname);
+    }
+
+    // 비밀번호 확인
+    public boolean checkPassword(String inputPassword) {
+        if (password == null) return true;  // 공개방
+        return password.equals(inputPassword);
+    }
+
+    // 비밀번호 방인지 확인
+    public boolean hasPassword() {
+        return password != null && !password.isEmpty();
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
     // 방 정보를 프로토콜 문자열로 변환
     public String toProtocolString() {
-        return roomId + "|" + roomName + "|" + players.size() + "|" + maxPlayers + "|" + inGame;
+        // roomId|roomName|현재인원|최대인원|게임중|비밀번호여부
+        return roomId + "|" + roomName + "|" + players.size() + "|" + maxPlayers + "|" + inGame + "|" + hasPassword();
     }
 
     @Override

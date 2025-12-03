@@ -151,14 +151,24 @@ public class LobbyPanel extends JPanel {
                 p.addMouseListener(new java.awt.event.MouseAdapter() {
                     @Override
                     public void mouseClicked(java.awt.event.MouseEvent e) {
+                        System.out.println("[DEBUG] Card clicked - Index: " + index + ", isHost: " + isHost);
+
                         // 방장만 클릭 가능
-                        if (!isHost) return;
+                        if (!isHost) {
+                            System.out.println("[DEBUG] Not host, ignoring click");
+                            return;
+                        }
 
                         // 빈 슬롯은 클릭 불가
                         String playerName = nameFields[index].getText().trim();
-                        if (playerName.startsWith("플레이어")) return;
+                        System.out.println("[DEBUG] Player name: '" + playerName + "'");
+                        if (playerName.startsWith("플레이어")) {
+                            System.out.println("[DEBUG] Empty slot, ignoring click");
+                            return;
+                        }
 
                         // 팝업 메뉴 표시
+                        System.out.println("[DEBUG] Showing popup menu for: " + playerName);
                         showPlayerActionMenu(index, playerName, e.getX(), e.getY());
                     }
 
@@ -307,7 +317,9 @@ public class LobbyPanel extends JPanel {
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.QUESTION_MESSAGE
             );
+            System.out.println("[DEBUG] Transfer host - Confirm: " + confirm + ", networkSender: " + networkSender);
             if (confirm == JOptionPane.YES_OPTION && networkSender != null) {
+                System.out.println("[DEBUG] Sending TRANSFER_HOST " + playerName);
                 networkSender.send("TRANSFER_HOST " + playerName);
             }
         });
@@ -324,7 +336,9 @@ public class LobbyPanel extends JPanel {
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
             );
+            System.out.println("[DEBUG] Kick - Confirm: " + confirm + ", networkSender: " + networkSender);
             if (confirm == JOptionPane.YES_OPTION && networkSender != null) {
+                System.out.println("[DEBUG] Sending KICK " + playerName);
                 networkSender.send("KICK " + playerName);
             }
         });
