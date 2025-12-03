@@ -229,8 +229,9 @@ public class RoomListPanel extends JPanel {
         // 방 목록 추가
         for (RoomInfo room : rooms) {
             String status = room.inGame ? "게임 중" : "대기 중";
+            String roomNameWithLock = room.hasPassword ? "🔒 " + room.roomName : room.roomName;
             Object[] row = {
-                    room.roomName,
+                    roomNameWithLock,
                     room.currentPlayers + "/" + room.maxPlayers,
                     status
             };
