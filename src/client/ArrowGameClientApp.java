@@ -462,6 +462,18 @@ public class ArrowGameClientApp extends JFrame {
                 gamePanel.updateOpponentGameState(playerName, score, combo, sequence, arrowColors, currentIndex);
             }
 
+        } else if (msg.startsWith("RANK_INFO ")) {
+                // RANK_INFO myRank totalPlayers firstPlayerName firstPlayerScore gap
+                String[] parts = msg.split(" ");
+                if (parts.length >= 6) {
+                    int rank = Integer.parseInt(parts[1]);
+                    int total = Integer.parseInt(parts[2]);
+                    String firstPlayer = parts[3];
+                    int gap = Integer.parseInt(parts[5]);
+
+                    gamePanel.updateRankInfo(rank, total, firstPlayer, gap);
+                }
+
         } else if (msg.startsWith("GAME_SEQUENCE ")) {
             // GAME_SEQUENCE stage UP DOWN LEFT RIGHT ...
             String[] parts = msg.split(" ");

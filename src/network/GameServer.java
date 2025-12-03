@@ -392,6 +392,9 @@ public class GameServer {
         }
 
         broadcastPlayerListToRoom(roomId);
+
+        // 실시간 순위 정보 브로드캐스트
+        broadcastCurrentRanking(roomId);
     }
 
     // 플레이어의 게임 상태 업데이트 처리
@@ -415,6 +418,47 @@ public class GameServer {
                 } catch (IOException e) {
                     System.err.println("Failed to send game state to " + p.getNickname());
                 }
+            }
+        }
+    }
+
+    // 실시간 순위 정보 계산 및 브로드캐스트
+    private synchronized void broadcastCurrentRanking(String roomId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null || !room.isInGame()) return;
+
+        // 현재 순위 계산 (점수 → 스테이지 → 성공 개수 순)
+        java.util.List<Player> sortedPlayers = new java.util.ArrayList<>(room.getPlayers());
+        sortedPlayers.sort((p1, p2) -> {
+            // 1. 점수 비교 (내림차순)
+            if (p2.getScore() != p1.getScore()) {
+                return p2.getScore() - p1.getScore();
+            }
+            // 2. 스테이지 비교 (내림차순)
+            if (p2.getCurrentStage() != p1.getCurrentStage()) {
+                return p2.getCurrentStage() - p1.getCurrentStage();
+            }
+            // 3. 정답 개수 비교 (내림차순)
+            return p2.getSuccessCount() - p1.getSuccessCount();
+        });
+
+        // 각 플레이어에게 순위 정보 전송
+        // RANK_INFO myRank totalPlayers firstPlayerName firstPlayerScore gap
+        for (int i = 0; i < sortedPlayers.size(); i++) {
+            Player player = sortedPlayers.get(i);
+            int rank = i + 1;
+            int totalPlayers = sortedPlayers.size();
+            String firstPlayerName = sortedPlayers.get(0).getNickname();
+            int firstPlayerScore = sortedPlayers.get(0).getScore();
+            int gap = firstPlayerScore - player.getScore();
+
+            String rankMsg = "RANK_INFO " + rank + " " + totalPlayers + " " +
+                           firstPlayerName + " " + firstPlayerScore + " " + gap;
+
+            try {
+                player.getHandler().sendMessage(rankMsg);
+            } catch (IOException e) {
+                System.err.println("Failed to send rank info to " + player.getNickname());
             }
         }
     }

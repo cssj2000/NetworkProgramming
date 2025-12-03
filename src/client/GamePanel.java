@@ -35,6 +35,13 @@ public class GamePanel extends JPanel implements KeyListener {
     private JLabel[] playerComboLabels = new JLabel[4];
     private JLabel timeValueLabel;
 
+    // 순위 정보
+    private int myRank = 1;
+    private int totalPlayers = 1;
+    private String firstPlayerName = "";
+    private int gapFromFirst = 0;
+    private JLabel rankInfoLabel;
+
     // 중앙/하단 텍스트
     private JLabel statusLabel = new JLabel("화살표 키를 순서대로 눌러주세요!", SwingConstants.CENTER);
     private JLabel difficultyLabel = new JLabel("난이도: 3개 화살표", SwingConstants.CENTER);
@@ -130,14 +137,31 @@ public class GamePanel extends JPanel implements KeyListener {
         statusLabel.setForeground(new Color(100, 120, 140));
         difficultyLabel.setForeground(new Color(150, 160, 170));
 
-        card.add(bigMessageLabel, BorderLayout.NORTH);
+        // 순위 정보 라벨 추가 (위쪽에 배치)
+        rankInfoLabel = new JLabel("", SwingConstants.CENTER);
+        rankInfoLabel.setFont(new Font("Dialog", Font.BOLD, 16));
+        rankInfoLabel.setForeground(new Color(255, 100, 100));
+
+        // 상단: 순위 정보 + 큰 메시지
+        JPanel topText = new JPanel();
+        topText.setOpaque(false);
+        topText.setLayout(new BoxLayout(topText, BoxLayout.Y_AXIS));
+        rankInfoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bigMessageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        topText.add(rankInfoLabel);
+        topText.add(Box.createVerticalStrut(5));
+        topText.add(bigMessageLabel);
+
+        card.add(topText, BorderLayout.NORTH);
         card.add(arrowPanel, BorderLayout.CENTER);
 
+        // 하단: 상태 메시지 + 난이도
         JPanel bottomText = new JPanel();
         bottomText.setOpaque(false);
         bottomText.setLayout(new BoxLayout(bottomText, BoxLayout.Y_AXIS));
         statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         difficultyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         bottomText.add(Box.createVerticalStrut(10));
         bottomText.add(statusLabel);
         bottomText.add(Box.createVerticalStrut(5));
@@ -268,6 +292,36 @@ public class GamePanel extends JPanel implements KeyListener {
         }
 
         gameStateSender.sendGameState(sb.toString());
+    }
+
+    /** 순위 정보 업데이트 (서버로부터 받음) */
+    public void updateRankInfo(int rank, int total, String firstPlayer, int gap) {
+        this.myRank = rank;
+        this.totalPlayers = total;
+        this.firstPlayerName = firstPlayer;
+        this.gapFromFirst = gap;
+
+        // 순위에 따라 메시지 표시
+        if (rank == total && total > 1) {
+            // 꼴등
+            rankInfoLabel.setText("⚠️ HURRY UP! 현재 꼴등입니다!");
+            rankInfoLabel.setForeground(new Color(255, 80, 80));
+        } else if (rank == 1) {
+            // 1등
+            rankInfoLabel.setText("🔥 현재 1등! 계속 달려보세요!");
+            rankInfoLabel.setForeground(new Color(255, 180, 0));
+        } else {
+            // 중간 순위
+            rankInfoLabel.setText("현재 " + rank + "등 - 1등과 " + gap + "점 차이");
+            rankInfoLabel.setForeground(new Color(100, 150, 255));
+        }
+
+        // 미니뷰에 1등 표시
+        for (java.util.Map.Entry<String, MiniGameView> entry : miniViews.entrySet()) {
+            String playerName = entry.getKey();
+            MiniGameView miniView = entry.getValue();
+            miniView.setFirstPlace(playerName.equals(firstPlayer));
+        }
     }
 
     // ---- 플레이어 정보 동기화 메서드 ----

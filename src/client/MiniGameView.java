@@ -15,10 +15,12 @@ public class MiniGameView extends JPanel {
     private List<Direction> sequence = new ArrayList<>();
     private List<Color> arrowColors = new ArrayList<>();
     private int currentIndex = 0;
+    private boolean isFirstPlace = false;
 
     private JLabel nameLabel;
     private JLabel scoreLabel;
     private MiniArrowPanel arrowPanel;
+    private Timer fireEffectTimer;
 
     public MiniGameView(String playerName) {
         this.playerName = playerName;
@@ -26,6 +28,13 @@ public class MiniGameView extends JPanel {
         setBackground(new Color(245, 250, 255));
         setBorder(BorderFactory.createLineBorder(new Color(180, 210, 230), 2));
         setPreferredSize(new Dimension(250, 150));
+
+        // 불타는 이펙트 타이머 (1등일 때만 작동)
+        fireEffectTimer = new Timer(100, e -> {
+            if (isFirstPlace) {
+                repaint();
+            }
+        });
 
         // 상단: 플레이어 정보
         JPanel infoPanel = new JPanel(new GridLayout(2, 1, 0, 2));
@@ -65,6 +74,27 @@ public class MiniGameView extends JPanel {
 
         scoreLabel.setText("점수: " + score + " | 콤보: " + combo);
         arrowPanel.updateSequence(sequence, arrowColors, currentIndex);
+        repaint();
+    }
+
+    /**
+     * 1등 상태 설정
+     */
+    public void setFirstPlace(boolean isFirst) {
+        this.isFirstPlace = isFirst;
+        if (isFirst) {
+            setBorder(BorderFactory.createLineBorder(new Color(255, 140, 0), 3));
+            setBackground(new Color(255, 245, 230));
+            nameLabel.setText("🔥 " + playerName + " 🔥");
+            nameLabel.setForeground(new Color(255, 100, 0));
+            fireEffectTimer.start();
+        } else {
+            setBorder(BorderFactory.createLineBorder(new Color(180, 210, 230), 2));
+            setBackground(new Color(245, 250, 255));
+            nameLabel.setText(playerName);
+            nameLabel.setForeground(new Color(80, 120, 180));
+            fireEffectTimer.stop();
+        }
         repaint();
     }
 

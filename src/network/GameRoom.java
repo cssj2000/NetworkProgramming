@@ -71,6 +71,9 @@ public class GameRoom {
             // 첫 번째 플레이어는 방장
             if (players.isEmpty()) {
                 player.setHost(true);
+            } else {
+                // 기존 플레이어와 중복되지 않도록 방장 권한 제거
+                player.setHost(false);
             }
             players.add(player);
         }
