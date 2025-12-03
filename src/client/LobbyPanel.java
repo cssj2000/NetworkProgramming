@@ -9,6 +9,7 @@ public class LobbyPanel extends JPanel {
     JTextField[] nameFields = new JTextField[4];
     JToggleButton[] readyButtons = new JToggleButton[4];
     JLabel[] hostLabels = new JLabel[4]; // 방장 표시 라벨
+    JPanel[] playerPanels = new JPanel[4]; // 플레이어 카드 패널 저장
     JButton startButton = new JButton("게임 시작!");
     JButton transferHostButton = new JButton("방장 위임");
     JButton leaveRoomButton = new JButton("방 나가기");
@@ -68,13 +69,27 @@ public class LobbyPanel extends JPanel {
             JPanel p = new JPanel();
             p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
             p.setBackground(Color.WHITE);
-            p.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(200, 230, 255), 2),
-                    BorderFactory.createEmptyBorder(10, 12, 12, 12)));
+
+            // 👤 0번(본인)은 눈에 띄는 파란색 테두리, 나머지는 기본 테두리
+            if (i == 0) {
+                p.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(80, 150, 255), 4),  // 진한 파란색, 두꺼운 테두리
+                        BorderFactory.createEmptyBorder(10, 12, 12, 12)));
+            } else {
+                p.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(new Color(200, 230, 255), 2),
+                        BorderFactory.createEmptyBorder(10, 12, 12, 12)));
+            }
 
             JLabel playerLabel = new JLabel("플레이어 " + (i + 1));
             playerLabel.setFont(new Font("Dialog", Font.BOLD, 18));
             playerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            // 👤 0번(본인)에게만 "나" 표시 추가
+            if (i == 0) {
+                playerLabel.setText("👤 나");
+                playerLabel.setForeground(new Color(80, 150, 255));
+            }
 
             // 방장 표시 라벨
             hostLabels[i] = new JLabel("👑 방장");
@@ -124,6 +139,8 @@ public class LobbyPanel extends JPanel {
             p.add(nameFields[i]);
             p.add(Box.createVerticalStrut(10));
             p.add(readyButtons[i]);
+
+            playerPanels[i] = p;  // 패널 저장
             playersPanel.add(p);
         }
         // ===== 방장용 플레이어 선택 리스트 UI =====
