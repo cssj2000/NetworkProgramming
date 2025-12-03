@@ -319,6 +319,7 @@ public class ArrowGameClientApp extends JFrame {
             if (parts.length >= 3) {
                 String nick = parts[1];
                 String text = parts[2];
+                // 모든 메시지를 닉네임으로 표시 (본인 포함)
                 lobbyPanel.addChatMessage(nick + ": " + text);
             }
 
@@ -521,10 +522,9 @@ public class ArrowGameClientApp extends JFrame {
             cardLayout.show(mainPanel, "RESULT");
 
         } else {
-            // 🔥 ROOM_LIST 같은 시스템 메시지가 채팅으로 들어오지 않도록 필터링
-            if (!msg.startsWith("ROOM_LIST")) {
-                lobbyPanel.addChatMessage(msg);
-            }
+            // 처리되지 않은 메시지는 디버그 출력만 (채팅창 출력 제거)
+            // CHAT, SYS 메시지는 이미 위에서 처리되었으므로 중복 출력 방지
+            System.out.println("[Unhandled message] " + msg);
         }
     }
     public static void main(String[] args) {

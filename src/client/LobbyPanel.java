@@ -281,10 +281,7 @@ public class LobbyPanel extends JPanel {
         String text = chatInput.getText().trim();
         if (text.isEmpty()) return;
 
-        // 내 화면에 먼저 표시
-        chatArea.append("나: " + text + "\n");
-
-        // 서버에도 전송
+        // 서버에 전송 (화면 표시는 서버에서 받을 때 처리)
         if (networkSender != null) {
             networkSender.send("CHAT " + text);
         }
