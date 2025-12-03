@@ -81,15 +81,16 @@ public class LobbyPanel extends JPanel {
                         BorderFactory.createEmptyBorder(10, 12, 12, 12)));
             }
 
-            JLabel playerLabel = new JLabel("플레이어 " + (i + 1));
+            // 👤 0번(본인)은 "나" 표시, 나머지는 "플레이어 N"
+            JLabel playerLabel;
+            if (i == 0) {
+                playerLabel = new JLabel("👤 나");
+                playerLabel.setForeground(new Color(80, 150, 255));
+            } else {
+                playerLabel = new JLabel("플레이어 " + (i + 1));
+            }
             playerLabel.setFont(new Font("Dialog", Font.BOLD, 18));
             playerLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            // 👤 0번(본인)에게만 "나" 표시 추가
-            if (i == 0) {
-                playerLabel.setText("👤 나");
-                playerLabel.setForeground(new Color(80, 150, 255));
-            }
 
             // 방장 표시 라벨
             hostLabels[i] = new JLabel("👑 방장");
@@ -98,8 +99,9 @@ public class LobbyPanel extends JPanel {
             hostLabels[i].setAlignmentX(Component.LEFT_ALIGNMENT);
             hostLabels[i].setVisible(false); // 기본적으로 숨김
 
-            nameFields[i] = new JTextField("플레이어" + (i + 1));
+            nameFields[i] = new JTextField("플레이어" + (i + 1), 15);  // 15 columns
             nameFields[i].setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+            nameFields[i].setPreferredSize(new Dimension(150, 30));  // 최소 너비 보장
 
             // 🔥 로비에서는 절대 닉네임 변경 불가 + 커서 깜빡임 제거
             nameFields[i].setEditable(false);            // 타이핑 불가
@@ -141,9 +143,46 @@ public class LobbyPanel extends JPanel {
             p.add(readyButtons[i]);
 
             playerPanels[i] = p;  // 패널 저장
+
+            // 플레이어 카드 클릭 이벤트 추가 (본인 제외)
+            if (i != 0) {
+                final int index = i;
+                p.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // 손 모양 커서
+                p.addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mouseClicked(java.awt.event.MouseEvent e) {
+                        // 방장만 클릭 가능
+                        if (!isHost) return;
+
+                        // 빈 슬롯은 클릭 불가
+                        String playerName = nameFields[index].getText().trim();
+                        if (playerName.startsWith("플레이어")) return;
+
+                        // 팝업 메뉴 표시
+                        showPlayerActionMenu(index, playerName, e.getX(), e.getY());
+                    }
+
+                    @Override
+                    public void mouseEntered(java.awt.event.MouseEvent e) {
+                        // 방장일 때만 호버 효과
+                        if (isHost) {
+                            String playerName = nameFields[index].getText().trim();
+                            if (!playerName.startsWith("플레이어")) {
+                                p.setBackground(new Color(240, 248, 255)); // 연한 파란색
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void mouseExited(java.awt.event.MouseEvent e) {
+                        p.setBackground(Color.WHITE); // 원래대로
+                    }
+                });
+            }
+
             playersPanel.add(p);
         }
-        // ===== 방장용 플레이어 선택 리스트 UI =====
+        // ===== 방장용 플레이어 선택 리스트 UI (더 이상 사용 안 함) =====
         playerListUI.setPreferredSize(new Dimension(200, 100));
         playerListUI.setForeground(Color.BLACK);
         playerListUI.setBackground(Color.WHITE);
@@ -250,7 +289,55 @@ public class LobbyPanel extends JPanel {
         });
     }
 
-    // 방장 위임 다이얼로그
+    // 플레이어 카드 클릭 시 표시되는 액션 메뉴
+    private void showPlayerActionMenu(int index, String playerName, int x, int y) {
+        JPopupMenu popupMenu = new JPopupMenu();
+        popupMenu.setBackground(Color.WHITE);
+        popupMenu.setBorder(BorderFactory.createLineBorder(new Color(180, 210, 230), 2));
+
+        // 방장 위임 메뉴
+        JMenuItem transferItem = new JMenuItem("👑 방장 위임");
+        transferItem.setFont(new Font("Dialog", Font.BOLD, 14));
+        transferItem.setForeground(new Color(255, 180, 0));
+        transferItem.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    playerName + " 님에게 방장을 위임하시겠습니까?",
+                    "방장 위임",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+            if (confirm == JOptionPane.YES_OPTION && networkSender != null) {
+                networkSender.send("TRANSFER_HOST " + playerName);
+            }
+        });
+
+        // 강퇴 메뉴
+        JMenuItem kickItem = new JMenuItem("⚠️ 강퇴");
+        kickItem.setFont(new Font("Dialog", Font.BOLD, 14));
+        kickItem.setForeground(new Color(255, 100, 100));
+        kickItem.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    playerName + " 님을 강퇴하시겠습니까?",
+                    "강퇴",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+            if (confirm == JOptionPane.YES_OPTION && networkSender != null) {
+                networkSender.send("KICK " + playerName);
+            }
+        });
+
+        popupMenu.add(transferItem);
+        popupMenu.addSeparator();
+        popupMenu.add(kickItem);
+
+        // 클릭한 패널에서 팝업 표시
+        popupMenu.show(playerPanels[index], x, y);
+    }
+
+    // 방장 위임 다이얼로그 (더 이상 사용 안 함)
     private void showTransferHostDialog() {
         if (otherPlayerNames.isEmpty()) {
             JOptionPane.showMessageDialog(this,
@@ -374,13 +461,10 @@ public class LobbyPanel extends JPanel {
         this.isHost = imHost;
         this.otherPlayerNames = new java.util.ArrayList<>(otherPlayers);
 
-        // 방장 위임 버튼 표시 여부
-        transferHostButton.setVisible(imHost && !otherPlayers.isEmpty());
-
-        kickButton.setVisible(imHost); // ⬅ 방장만 강퇴 버튼 보임
-        playerListUI.setVisible(imHost);
-// playerListUI에 플레이어 목록 갱신
-        playerListUI.setListData(otherPlayers.toArray(new String[0]));
+        // 🚫 기존 버튼들은 더 이상 표시하지 않음 (카드 클릭 방식으로 변경)
+        transferHostButton.setVisible(false);
+        kickButton.setVisible(false);
+        playerListUI.setVisible(false);
 
         // 게임 시작 버튼 활성화 여부 (방장만 + 모두 준비)
         updateStartButton();

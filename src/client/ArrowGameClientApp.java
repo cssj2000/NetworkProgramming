@@ -335,6 +335,15 @@ public class ArrowGameClientApp extends JFrame {
 
             currentRoomId = null;
             cardLayout.show(mainPanel, "ROOM_LIST");
+
+            // 즉시 방 목록 요청
+            try {
+                gameClient.send("REQUEST_ROOM_LIST");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            // 자동 갱신 시작
             roomListPanel.startAutoRefresh();
             return;
         } else if (msg.startsWith("PLAYER_LIST ")) {
